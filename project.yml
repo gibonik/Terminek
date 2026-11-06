@@ -1,0 +1,52 @@
+name: Terminy
+options:
+  bundleIdPrefix: pl.terminy
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: pl
+settings:
+  base:
+    SWIFT_VERSION: "5.10"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""   # wpisz swój Team ID albo wybierz zespół w Xcode
+targets:
+  Terminy:
+    type: application
+    platform: iOS
+    sources:
+      - Terminy
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pl.terminy.app
+        CODE_SIGN_ENTITLEMENTS: Terminy/Resources/Terminy.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Terminy
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Face ID chroni Twoje dokumenty przed wglądem osób trzecich."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Aparat służy do skanowania dokumentów i odczytu daty ważności."
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+    info:
+      path: Terminy/Resources/Info.plist
+      properties:
+        UIBackgroundModes: [remote-notification]
+  TerminyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - TerminyTests
+    dependencies:
+      - target: Terminy
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Terminy:
+    build:
+      targets:
+        Terminy: all
+        TerminyTests: [test]
+    test:
+      targets: [TerminyTests]
