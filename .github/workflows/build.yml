@@ -10,7 +10,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Xcode
         run: |
@@ -24,11 +24,20 @@ jobs:
 
       - name: Tests (simulator)
         run: |
-          set -o pipefail
           DEST=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          set +e
           xcodebuild test -project Terminy.xcodeproj -scheme Terminy \
-            -destination "id=$DEST" CODE_SIGNING_ALLOWED=NO | tee test.log | grep -E "error:|warning: |Test Suite|Executed|\*\*" || true
-          test "${PIPESTATUS[0]}" -eq 0
+            -destination "id=$DEST" -resultBundlePath build/Tests.xcresult \
+            CODE_SIGNING_ALLOWED=NO > test.log 2>&1
+          status=$?
+          grep -E "error:|Test Case|Executed|\*\* TEST" test.log
+          if [ $status -ne 0 ]; then
+            echo "::group::Crash reports"
+            find ~/Library/Logs/DiagnosticReports -name 'Terminy*' -newer test.log -o -name 'Terminy*' -mmin -15 2>/dev/null | head -3 | while read f; do echo "== $f"; head -c 6000 "$f"; done
+            echo "::endgroup::"
+            tail -n 60 test.log
+          fi
+          exit $status
 
       - name: Build unsigned .ipa (for Sideloadly / AltStore)
         run: |
@@ -51,4 +60,6 @@ jobs:
         if: failure()
         with:
           name: logs
-          path: test.log
+          path: |
+            test.log
+            build/Tests.xcresult

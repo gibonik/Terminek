@@ -9,18 +9,7 @@ struct TerminyApp: App {
     @State private var lock = AppLock()
 
     init() {
-        let schema = Schema([Document.self])
-        do {
-            // Prywatna baza CloudKit: dane widzi tylko właściciel konta iCloud,
-            // synchronizują się między jego urządzeniami.
-            let cloud = ModelConfiguration(schema: schema, cloudKitDatabase: .private(Self.cloudKitContainerID))
-            container = try ModelContainer(for: schema, configurations: cloud)
-        } catch {
-            // Np. brak podpisu/entitlementów w symulatorze – działamy lokalnie.
-            print("CloudKit niedostępny, zapis lokalny: \(error)")
-            let local = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
-            container = try! ModelContainer(for: schema, configurations: local)
-        }
+        container = Self.makeContainer()
     }
 
     var body: some Scene {
@@ -29,5 +18,34 @@ struct TerminyApp: App {
                 .environment(lock)
         }
         .modelContainer(container)
+    }
+
+    /// Prywatna baza CloudKit, gdy się da (płatne konto deweloperskie + zalogowany iCloud).
+    /// W przeciwnym razie zapis lokalny – np. przy instalacji przez Sideloadly na darmowe Apple ID,
+    /// które nie dostaje uprawnień iCloud.
+    private static func makeContainer() -> ModelContainer {
+        let schema = Schema([Document.self])
+        let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
+        if isRunningTests {
+            return try! ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        }
+
+        if FileManager.default.ubiquityIdentityToken != nil {
+            let cloud = ModelConfiguration(
+                "Cloud", schema: schema,
+                cloudKitDatabase: .private(cloudKitContainerID)
+            )
+            if let container = try? ModelContainer(for: schema, configurations: cloud) {
+                return container
+            }
+        }
+
+        let local = ModelConfiguration("Local", schema: schema, cloudKitDatabase: .none)
+        if let container = try? ModelContainer(for: schema, configurations: local) {
+            return container
+        }
+        print("Nie udało się otworzyć bazy na dysku, dane tylko w pamięci.")
+        return try! ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
     }
 }
