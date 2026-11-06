@@ -50,6 +50,15 @@ jobs:
           xcrun simctl spawn "$DEST" launchctl list | grep -q "pl.terminy.app" || { echo "::error::Aplikacja padła po starcie"; find ~/Library/Logs/DiagnosticReports -name 'Terminy*' -mmin -5 | head -1 | xargs -I{} head -c 6000 {}; exit 1; }
           echo "Aplikacja działa po 8 s"
 
+      - name: Diagnostic - CloudKit path without entitlement
+        continue-on-error: true
+        run: |
+          DEST=$(xcrun simctl list devices booted -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for v in d.values() for x in v))")
+          xcrun simctl terminate "$DEST" pl.terminy.app || true
+          xcrun simctl launch "$DEST" pl.terminy.app -forceCloudKit
+          sleep 8
+          if xcrun simctl spawn "$DEST" launchctl list | grep -q "pl.terminy.app"; then echo "CloudKit bez uprawnień: NIE crashuje"; else echo "CloudKit bez uprawnień: CRASH"; find ~/Library/Logs/DiagnosticReports -name 'Terminy*' -mmin -3 | head -1 | xargs -I{} head -c 4000 {}; fi
+
       - name: Build unsigned .ipa (for Sideloadly / AltStore)
         run: |
           set -o pipefail

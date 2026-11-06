@@ -23,6 +23,30 @@ struct TerminyApp: App {
     /// Prywatna baza CloudKit, gdy się da (płatne konto deweloperskie + zalogowany iCloud).
     /// W przeciwnym razie zapis lokalny – np. przy instalacji przez Sideloadly na darmowe Apple ID,
     /// które nie dostaje uprawnień iCloud.
+    /// Czy aplikacja faktycznie ma uprawnienie CloudKit. Próba otwarcia bazy CloudKit bez niego
+    /// potrafi zabić aplikację od razu przy starcie (zamiast rzucić błąd), więc sprawdzamy to wcześniej.
+    ///
+    /// - Sideloadly / darmowe Apple ID: w `embedded.mobileprovision` nie ma CloudKit → zapis lokalny.
+    /// - Build deweloperski z płatnego konta: profil zawiera CloudKit → iCloud.
+    /// - App Store / TestFlight: profilu nie ma w paczce, uprawnienia nadał Apple → iCloud.
+    static var canUseCloudKit: Bool {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-forceCloudKit") { return true }   // tylko do testów w CI
+        if args.contains("-disableCloudKit") { return false }
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        guard FileManager.default.ubiquityIdentityToken != nil else { return false }
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision") else {
+            return true
+        }
+        guard let data = try? Data(contentsOf: url) else { return false }
+        // Profil to podpisany plist; wystarczy poszukać w nim klucza usług iCloud.
+        let text = String(decoding: data, as: UTF8.self)
+        return text.contains("com.apple.developer.icloud-services") && text.contains("CloudKit")
+        #endif
+    }
+
     private static func makeContainer() -> ModelContainer {
         let schema = Schema([Document.self])
         let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
@@ -31,7 +55,7 @@ struct TerminyApp: App {
             return try! ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         }
 
-        if FileManager.default.ubiquityIdentityToken != nil {
+        if canUseCloudKit {
             let cloud = ModelConfiguration(
                 "Cloud", schema: schema,
                 cloudKitDatabase: .private(cloudKitContainerID)
