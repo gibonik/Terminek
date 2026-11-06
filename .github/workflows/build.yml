@@ -39,6 +39,17 @@ jobs:
           fi
           exit $status
 
+      - name: Smoke test (app starts and stays up)
+        run: |
+          DEST=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone')))")
+          xcrun simctl boot "$DEST" || true
+          APP=$(find ~/Library/Developer/Xcode/DerivedData -path '*Debug-iphonesimulator/Terminy.app' -maxdepth 6 | head -1)
+          xcrun simctl install "$DEST" "$APP"
+          xcrun simctl launch "$DEST" pl.terminy.app
+          sleep 8
+          xcrun simctl spawn "$DEST" launchctl list | grep -q "pl.terminy.app" || { echo "::error::Aplikacja padła po starcie"; find ~/Library/Logs/DiagnosticReports -name 'Terminy*' -mmin -5 | head -1 | xargs -I{} head -c 6000 {}; exit 1; }
+          echo "Aplikacja działa po 8 s"
+
       - name: Build unsigned .ipa (for Sideloadly / AltStore)
         run: |
           set -o pipefail
