@@ -155,6 +155,7 @@ struct DocCard: View {
             if compact { compactContent } else { fullContent }
         }
         .foregroundStyle(ink)
+        .dynamicTypeSize(...DynamicTypeSize.large)
         .frame(width: size.width, height: size.height)
         .saturation(expired ? 0.45 : 1)
         .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
@@ -164,8 +165,12 @@ struct DocCard: View {
                                              startPoint: .topLeading, endPoint: .bottomTrailing),
                               lineWidth: DT.Size.hairline)
         }
-        .overlay(alignment: .center) {
-            if expired && !compact { ExpiredStamp() }
+        .overlay(alignment: .topTrailing) {
+            if expired && !compact {
+                ExpiredStamp()
+                    .padding(.top, DT.Space.xl + DT.Space.md)
+                    .padding(.trailing, DT.Space.md)
+            }
         }
         .shadow(color: category.cardGlow.opacity(expired ? 0.15 : 0.35), radius: compact ? DT.Space.sm : DT.Space.lg, y: compact ? DT.Space.xs : DT.Space.md)
         .accessibilityElement(children: .ignore)
@@ -249,7 +254,7 @@ struct DocCard: View {
             Spacer(minLength: 0)
             HStack(alignment: .lastTextBaseline, spacing: DT.Space.sm) {
                 titleBlock(data.owner.isEmpty ? nil : data.owner)
-                Spacer(minLength: DT.Space.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 count
             }
         }
@@ -276,8 +281,9 @@ struct DocCard: View {
                 titleBlock(data.owner.isEmpty ? nil : data.owner)
                 count.padding(.top, DT.Space.xs)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
             InspectionSticker(month: month, year: year, ink: ink)
+                .fixedSize()
         }
         .padding(DT.Space.md)
     }
@@ -289,8 +295,13 @@ struct DocCard: View {
                 Text("RZECZPOSPOLITA POLSKA")
                     .font(DT.Typography.overline)
                     .kerning(DT.Size.hairline)
-                Spacer()
-                count
+                    .lineLimit(1)
+                Spacer(minLength: DT.Space.xs)
+                Text(DaysText.compact(to: data.expiryDate))
+                    .font(DT.Typography.headline)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
             }
             Spacer(minLength: 0)
             Image(systemName: "globe.europe.africa.fill")
@@ -349,9 +360,16 @@ struct DocCard: View {
                         .font(DT.Typography.caption)
                         .opacity(0.8)
                         .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                 }
-                Spacer(minLength: 0)
-                count
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+                Text(DaysText.compact(to: data.expiryDate))
+                    .font(DT.Typography.title3)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize()
             }
             if category == .idCard {
                 Spacer(minLength: 0)
@@ -430,14 +448,10 @@ struct DocCard: View {
                 }
             }
             Spacer(minLength: 0)
-            Text(category.cardLabel)
-                .font(DT.Typography.overline)
-                .opacity(0.75)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
             Text(data.title)
                 .font(DT.Typography.subheadlineEmphasized)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
             Text(DaysText.compact(to: data.expiryDate))
                 .font(DT.Typography.caption)
                 .monospacedDigit()
@@ -630,41 +644,59 @@ struct MRZLines: View {
     }
 }
 
-/// Znak aplikacji: wachlarz trzech kart i licznik z literą T.
+/// Znak aplikacji: kartka z zagiętym rogiem i licznik z ptaszkiem (jak ikona).
 struct LogoMark: View {
     var size: CGFloat = DT.Size.avatar
 
     var body: some View {
         ZStack {
-            card(DT.Palette.Card.carInsurance, angle: 16, dx: -0.1, dy: -0.12)
-            card(DT.Palette.Card.homeInsurance, angle: 6, dx: -0.02, dy: -0.04)
-            card(DT.Palette.Card.subscriptionGlow, angle: -6, dx: 0.04, dy: 0.06)
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .fill(LinearGradient(colors: [DT.Palette.Card.subscriptionGlow[0], DT.Palette.Card.subscription[1]],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+            DocSheet()
+                .fill(DT.Palette.Card.highlight)
+                .frame(width: size * 0.54, height: size * 0.68)
+                .shadow(color: DT.Palette.Card.lowlight.opacity(0.25), radius: size * 0.04, y: size * 0.03)
                 .overlay {
                     ZStack {
                         Circle()
+                            .stroke(DT.Palette.Card.subscription[1].opacity(0.12), lineWidth: size * 0.06)
+                        Circle()
                             .trim(from: 0, to: 0.8)
-                            .stroke(DT.Palette.Card.ink, style: StrokeStyle(lineWidth: size * 0.05, lineCap: .round))
+                            .stroke(AngularGradient(colors: [DT.Palette.Card.subscriptionGlow[0], DT.Palette.Card.subscriptionGlow[1], DT.Palette.accentAlt],
+                                                    center: .center),
+                                    style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round))
                             .rotationEffect(.degrees(-90))
-                        Text("T")
-                            .font(.system(size: size * 0.26, weight: .heavy, design: .rounded))
-                            .foregroundStyle(DT.Palette.Card.ink)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: size * 0.14, weight: .black))
+                            .foregroundStyle(DT.Palette.Card.subscription[1])
                     }
                     .frame(width: size * 0.36, height: size * 0.36)
-                    .rotationEffect(.degrees(-6))
-                    .offset(x: size * 0.04, y: size * 0.06)
+                    .offset(y: size * 0.08)
                 }
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
     }
+}
 
-    private func card(_ colors: [Color], angle: Double, dx: CGFloat, dy: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: size * 0.08, style: .continuous)
-            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-            .frame(width: size * 0.82, height: size * 0.52)
-            .shadow(color: DT.Palette.Card.lowlight.opacity(0.3), radius: size * 0.04, y: size * 0.03)
-            .rotationEffect(.degrees(angle))
-            .offset(x: size * dx, y: size * dy)
+/// Kartka z zagiętym prawym górnym rogiem.
+struct DocSheet: Shape {
+    func path(in rect: CGRect) -> Path {
+        let fold = rect.width * 0.28
+        let r = rect.width * 0.12
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX - fold, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + fold))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        p.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r), control: CGPoint(x: rect.minX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
+        p.addQuadCurve(to: CGPoint(x: rect.minX + r, y: rect.minY), control: CGPoint(x: rect.minX, y: rect.minY))
+        p.closeSubpath()
+        return p
     }
 }
 

@@ -206,7 +206,6 @@ struct DocumentsView: View {
                     content
                         .scaleEffect(phase.isIdentity ? 1 : 0.88)
                         .opacity(phase.isIdentity ? 1 : 0.4)
-                        .rotation3DEffect(.degrees(phase.value * 18), axis: (x: 1, y: 0, z: 0), perspective: 0.5)
                 }
             }
         }

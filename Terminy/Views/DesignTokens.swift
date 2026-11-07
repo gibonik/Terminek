@@ -48,9 +48,9 @@ enum DesignTokens {
         /// Okrągła akcja w szczegółach (jak w aplikacjach bankowych).
         static let actionCircle: CGFloat = 56
         /// Karta dokumentu w karuzeli (proporcje karty ID-1).
-        static let card = CGSize(width: 296, height: 188)
+        static let card = CGSize(width: 320, height: 204)
         /// Mała karta w rzędach.
-        static let railCard = CGSize(width: 168, height: 108)
+        static let railCard = CGSize(width: 168, height: 120)
         /// Miniatura karty w wierszu.
         static let miniCard = CGSize(width: 48, height: 32)
         /// Wysokość baneru na starcie.
@@ -70,9 +70,9 @@ enum DesignTokens {
         static let dot: CGFloat = 4
         static let avatar: CGFloat = 40
         /// Zdjęcie na dowodzie i prawie jazdy.
-        static let photo = CGSize(width: 56, height: 72)
+        static let photo = CGSize(width: 48, height: 60)
         /// Okrągła naklejka przeglądu.
-        static let sticker: CGFloat = 88
+        static let sticker: CGFloat = 84
         /// Plakietka UE.
         static let euBadge = CGSize(width: 40, height: 48)
         static let iconBadge: CGFloat = 36
