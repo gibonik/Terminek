@@ -22,7 +22,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Terminy/Resources/Terminy.entitlements
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Terminy
+        INFOPLIST_KEY_CFBundleDisplayName: Terminek
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_NSFaceIDUsageDescription: "Face ID chroni Twoje dokumenty przed wglądem osób trzecich."
         INFOPLIST_KEY_NSCameraUsageDescription: "Aparat służy do skanowania dokumentów i odczytu daty ważności."
         INFOPLIST_KEY_UILaunchScreen_Generation: YES

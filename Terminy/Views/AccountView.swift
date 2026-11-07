@@ -106,7 +106,7 @@ struct AccountView: View {
                     .frame(minHeight: DT.Size.toggleRow)
                 }
 
-                Text("Terminy · wersja \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+                Text("Terminek · wersja \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
                     .font(DT.Typography.footnote)
                     .foregroundStyle(DT.Palette.textTertiary)
                     .frame(maxWidth: .infinity)

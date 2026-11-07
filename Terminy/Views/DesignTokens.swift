@@ -69,6 +69,12 @@ enum DesignTokens {
         static let dayCell: CGFloat = 40
         static let dot: CGFloat = 4
         static let avatar: CGFloat = 40
+        /// Zdjęcie na dowodzie i prawie jazdy.
+        static let photo = CGSize(width: 56, height: 72)
+        /// Okrągła naklejka przeglądu.
+        static let sticker: CGFloat = 88
+        /// Plakietka UE.
+        static let euBadge = CGSize(width: 40, height: 48)
         static let iconBadge: CGFloat = 36
         static let ring: CGFloat = 56
         static let ringLine: CGFloat = 6
@@ -164,6 +170,27 @@ enum DesignTokens {
             static let home = [SwiftUI.Color(hex: 0x2563EB), SwiftUI.Color(hex: 0x06B6D4)]
             static let personal = [SwiftUI.Color(hex: 0x0D9488), SwiftUI.Color(hex: 0x0E7490)]
             static let subscriptions = [SwiftUI.Color(hex: 0x7C3AED), SwiftUI.Color(hex: 0xDB2777)]
+            // Każdy rodzaj dokumentu ma własny wygląd karty.
+            static let carInsurance = [SwiftUI.Color(hex: 0xFF7A1A), SwiftUI.Color(hex: 0xE11D48)]
+            static let carInspection = [SwiftUI.Color(hex: 0xFBBF24), SwiftUI.Color(hex: 0xEA580C)]
+            static let carInspectionInk = SwiftUI.Color(hex: 0x3B1702)
+            static let passport = [SwiftUI.Color(hex: 0x881337), SwiftUI.Color(hex: 0x3F0717)]
+            static let passportInk = SwiftUI.Color(hex: 0xF5E1A4)
+            static let idCard = [SwiftUI.Color(hex: 0xF5D0FE), SwiftUI.Color(hex: 0xBAE6FD)]
+            static let idCardInk = SwiftUI.Color(hex: 0x2E1A47)
+            static let drivingLicense = [SwiftUI.Color(hex: 0xFBCFE8), SwiftUI.Color(hex: 0xF9A8D4)]
+            static let drivingLicenseInk = SwiftUI.Color(hex: 0x4A1033)
+            static let homeInsurance = [SwiftUI.Color(hex: 0x2563EB), SwiftUI.Color(hex: 0x06B6D4)]
+            static let subscription = [SwiftUI.Color(hex: 0x14102A), SwiftUI.Color(hex: 0x3B0764)]
+            static let subscriptionGlow = [SwiftUI.Color(hex: 0x7C3AED), SwiftUI.Color(hex: 0xDB2777)]
+            static let other = [SwiftUI.Color(hex: 0x475569), SwiftUI.Color(hex: 0x1E293B)]
+            /// Mocniejsze wersje jasnych kart do animowanych banerów (biały tekst).
+            static let idCardHero = [SwiftUI.Color(hex: 0xC026D3), SwiftUI.Color(hex: 0x0EA5E9)]
+            static let drivingLicenseHero = [SwiftUI.Color(hex: 0xDB2777), SwiftUI.Color(hex: 0x9D174D)]
+            static let carInspectionHero = [SwiftUI.Color(hex: 0xF59E0B), SwiftUI.Color(hex: 0xC2410C)]
+            /// Niebieska plakietka UE na prawie jazdy.
+            static let euBlue = SwiftUI.Color(hex: 0x1D4ED8)
+            static let euStar = SwiftUI.Color(hex: 0xFACC15)
             /// Tekst na kartach.
             static let ink = SwiftUI.Color.white
             static let highlight = SwiftUI.Color.white

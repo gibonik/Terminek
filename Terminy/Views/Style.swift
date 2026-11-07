@@ -117,6 +117,61 @@ enum CategoryGroup: String, CaseIterable, Identifiable {
 }
 
 extension DocumentCategory {
+    /// Gradient karty tego rodzaju dokumentu.
+    var cardGradient: [Color] {
+        switch self {
+        case .carInsurance: DT.Palette.Card.carInsurance
+        case .carInspection: DT.Palette.Card.carInspection
+        case .passport: DT.Palette.Card.passport
+        case .idCard: DT.Palette.Card.idCard
+        case .drivingLicense: DT.Palette.Card.drivingLicense
+        case .homeInsurance: DT.Palette.Card.homeInsurance
+        case .subscription: DT.Palette.Card.subscription
+        case .other: DT.Palette.Card.other
+        }
+    }
+
+    /// Kolor tekstu na karcie.
+    var cardInk: Color {
+        switch self {
+        case .carInspection: DT.Palette.Card.carInspectionInk
+        case .passport: DT.Palette.Card.passportInk
+        case .idCard: DT.Palette.Card.idCardInk
+        case .drivingLicense: DT.Palette.Card.drivingLicenseInk
+        default: DT.Palette.Card.ink
+        }
+    }
+
+    /// Gradient animowanego baneru i tła szczegółów (zawsze z białym tekstem).
+    var heroGradient: [Color] {
+        switch self {
+        case .idCard: DT.Palette.Card.idCardHero
+        case .drivingLicense: DT.Palette.Card.drivingLicenseHero
+        case .carInspection: DT.Palette.Card.carInspectionHero
+        case .subscription: DT.Palette.Card.subscriptionGlow
+        default: cardGradient
+        }
+    }
+
+    /// Kolor do poświaty i kropek.
+    var cardGlow: Color {
+        self == .subscription ? DT.Palette.Card.subscriptionGlow[0] : cardGradient[0]
+    }
+
+    /// Napis na karcie, jak na prawdziwym dokumencie.
+    var cardLabel: String {
+        switch self {
+        case .carInsurance: "POLISA OC"
+        case .carInspection: "BADANIE TECHNICZNE"
+        case .passport: "PASZPORT · PASSPORT"
+        case .idCard: "DOWÓD OSOBISTY"
+        case .drivingLicense: "PRAWO JAZDY"
+        case .homeInsurance: "POLISA MIESZKANIA"
+        case .subscription: "SUBSKRYPCJA"
+        case .other: "DOKUMENT"
+        }
+    }
+
     var group: CategoryGroup {
         switch self {
         case .carInsurance, .carInspection, .drivingLicense: .auto

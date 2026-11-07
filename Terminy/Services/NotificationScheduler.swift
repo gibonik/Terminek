@@ -72,7 +72,7 @@ final class NotificationScheduler {
             content.userInfo = [Self.documentIDKey: document.id.uuidString]
             content.categoryIdentifier = Self.categoryID
         } else {
-            content.title = "Terminy"
+            content.title = "Terminek"
             content.body = "Tak będą wyglądać przypomnienia."
         }
         content.sound = .default

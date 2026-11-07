@@ -133,35 +133,28 @@ struct CardData: Equatable {
 
 // MARK: - Karta dokumentu
 
-/// Karta dokumentu w stylu karty płatniczej: gradient grupy, złoty chip, hologram i odblask.
+/// Karta dokumentu. Każdy rodzaj ma własny wygląd: polisa z giloszem, naklejka przeglądu,
+/// bordowy paszport z godłem i strefą MRZ, dowód i prawo jazdy ze zdjęciem, ciemna karta subskrypcji.
 struct DocCard: View {
     let data: CardData
     var compact = false
     var tilt = true
 
+    private var category: DocumentCategory { data.category }
+    private var ink: Color { category.cardInk }
+
     var body: some View {
         let size = compact ? DT.Size.railCard : DT.Size.card
         let expired = data.daysLeft < 0
-        let gradient = data.group.gradient
         ZStack(alignment: .topLeading) {
-            LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
-
-            // Duży znak rodzaju dokumentu jako wzór w tle.
-            Image(systemName: data.category.symbol)
-                .font(.system(size: size.height * 0.9, weight: .bold))
-                .foregroundStyle(DT.Palette.Card.highlight.opacity(0.10))
-                .rotationEffect(.degrees(-14))
-                .offset(x: size.width * 0.52, y: size.height * 0.18)
-                .accessibilityHidden(true)
-
-            RadialGradient(colors: [DT.Palette.Card.highlight.opacity(0.28), .clear],
+            LinearGradient(colors: category.cardGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+            CardPattern(category: category, ink: ink)
+            RadialGradient(colors: [DT.Palette.Card.highlight.opacity(0.22), .clear],
                            center: .topLeading, startRadius: 0, endRadius: size.width * 0.8)
-
             Sheen(active: tilt)
-
-            if compact { compactContent } else { fullContent(expired: expired) }
+            if compact { compactContent } else { fullContent }
         }
-        .foregroundStyle(DT.Palette.Card.ink)
+        .foregroundStyle(ink)
         .frame(width: size.width, height: size.height)
         .saturation(expired ? 0.45 : 1)
         .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
@@ -174,68 +167,274 @@ struct DocCard: View {
         .overlay(alignment: .center) {
             if expired && !compact { ExpiredStamp() }
         }
-        .shadow(color: gradient[0].opacity(expired ? 0.15 : 0.35), radius: compact ? DT.Space.sm : DT.Space.lg, y: compact ? DT.Space.xs : DT.Space.md)
+        .shadow(color: category.cardGlow.opacity(expired ? 0.15 : 0.35), radius: compact ? DT.Space.sm : DT.Space.lg, y: compact ? DT.Space.xs : DT.Space.md)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(data.title), \(data.category.title)")
         .accessibilityValue(expired ? "po terminie, \(PL.date(data.expiryDate))"
                             : "\(DaysText.sentence(data.daysLeft)), \(PL.date(data.expiryDate))")
     }
 
-    private func fullContent(expired: Bool) -> some View {
+    // MARK: Pełna karta
+
+    @ViewBuilder
+    private var fullContent: some View {
+        switch category {
+        case .passport: passportLayout
+        case .idCard, .drivingLicense: identityLayout
+        case .carInspection: inspectionLayout
+        case .subscription: subscriptionLayout
+        default: policyLayout
+        }
+    }
+
+    /// Nagłówek: ikona, napis z dokumentu, hologram.
+    private var labelRow: some View {
+        HStack(spacing: DT.Space.xs) {
+            Image(systemName: category.symbol).font(DT.Typography.footnoteEmphasized)
+            Text(category.cardLabel)
+                .font(DT.Typography.overline)
+                .kerning(DT.Size.hairline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: DT.Space.xs)
+            HoloFoil(active: tilt)
+                .frame(width: DT.Size.hologram.width, height: DT.Size.hologram.height)
+        }
+        .opacity(0.92)
+    }
+
+    private var count: some View {
+        let count = data.bigCount
+        return HStack(alignment: .lastTextBaseline, spacing: DT.Space.xxs) {
+            Text(count.value)
+                .font(count.unit == nil ? DT.Typography.title : DT.Typography.cardNumber)
+                .contentTransition(.numericText(countsDown: true))
+            if let unit = count.unit {
+                Text(unit).font(DT.Typography.footnoteEmphasized).opacity(0.85)
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
+    }
+
+    private func titleBlock(_ second: String?) -> some View {
+        VStack(alignment: .leading, spacing: DT.Space.xxs) {
+            Text(data.title)
+                .font(DT.Typography.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(second ?? "Ważne do \(PL.numeric(data.expiryDate))")
+                .font(DT.Typography.caption)
+                .opacity(0.8)
+                .lineLimit(1)
+                .monospacedDigit()
+        }
+    }
+
+    /// Polisy (OC, mieszkanie) i inne: chip, nazwa, ubezpieczyciel, licznik.
+    private var policyLayout: some View {
         VStack(alignment: .leading, spacing: 0) {
+            labelRow
             HStack(spacing: DT.Space.xs) {
-                Image(systemName: data.category.symbol)
-                    .font(DT.Typography.footnoteEmphasized)
-                Text(data.category.title.uppercased())
+                CardChip()
+                if !data.number.isEmpty {
+                    Text(data.number)
+                        .font(DT.Typography.captionEmphasized)
+                        .monospaced()
+                        .opacity(0.8)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.top, DT.Space.sm)
+            Spacer(minLength: 0)
+            HStack(alignment: .lastTextBaseline, spacing: DT.Space.sm) {
+                titleBlock(data.owner.isEmpty ? nil : data.owner)
+                Spacer(minLength: DT.Space.xs)
+                count
+            }
+        }
+        .padding(DT.Space.md)
+    }
+
+    /// Przegląd: okrągła naklejka z miesiącem i rokiem jak na szybie.
+    private var inspectionLayout: some View {
+        let cal = Calendar.current
+        let month = cal.component(.month, from: data.expiryDate)
+        let year = cal.component(.year, from: data.expiryDate)
+        return HStack(alignment: .top, spacing: DT.Space.sm) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: DT.Space.xs) {
+                    Image(systemName: category.symbol).font(DT.Typography.footnoteEmphasized)
+                    Text(category.cardLabel)
+                        .font(DT.Typography.overline)
+                        .kerning(DT.Size.hairline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .opacity(0.92)
+                Spacer(minLength: 0)
+                titleBlock(data.owner.isEmpty ? nil : data.owner)
+                count.padding(.top, DT.Space.xs)
+            }
+            Spacer(minLength: 0)
+            InspectionSticker(month: month, year: year, ink: ink)
+        }
+        .padding(DT.Space.md)
+    }
+
+    /// Paszport: złote godło pośrodku, ramka, strefa MRZ na dole.
+    private var passportLayout: some View {
+        VStack(spacing: DT.Space.xxs) {
+            HStack {
+                Text("RZECZPOSPOLITA POLSKA")
                     .font(DT.Typography.overline)
                     .kerning(DT.Size.hairline)
-                    .lineLimit(1)
+                Spacer()
+                count
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "globe.europe.africa.fill")
+                .font(DT.Typography.largeTitle)
+            Text(category.cardLabel)
+                .font(DT.Typography.captionEmphasized)
+                .kerning(DT.Size.hairline * 2)
+            Spacer(minLength: 0)
+            MRZLines(text: mrz, ink: ink)
+        }
+        .padding(DT.Space.md)
+        .overlay {
+            RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous)
+                .strokeBorder(ink.opacity(0.45), lineWidth: DT.Size.hairline)
+                .padding(DT.Space.xs)
+        }
+    }
+
+    /// Dowód i prawo jazdy: zdjęcie, dane, plakietka UE na prawie jazdy, MRZ na dowodzie.
+    private var identityLayout: some View {
+        VStack(alignment: .leading, spacing: DT.Space.xs) {
+            HStack(spacing: DT.Space.xs) {
+                if category == .drivingLicense { EUBadge() }
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(category.cardLabel)
+                        .font(DT.Typography.overline)
+                        .kerning(DT.Size.hairline)
+                    Text("RZECZPOSPOLITA POLSKA")
+                        .font(DT.Typography.caption)
+                        .opacity(0.7)
+                }
                 Spacer(minLength: DT.Space.xs)
                 HoloFoil(active: tilt)
                     .frame(width: DT.Size.hologram.width, height: DT.Size.hologram.height)
             }
-            .opacity(0.9)
-
-            CardChip()
-                .padding(.top, DT.Space.sm)
-
-            Spacer(minLength: 0)
-
-            HStack(alignment: .lastTextBaseline, spacing: DT.Space.sm) {
+            HStack(alignment: .bottom, spacing: DT.Space.sm) {
+                PhotoBox(ink: ink)
                 VStack(alignment: .leading, spacing: DT.Space.xxs) {
-                    Text(data.title)
+                    Text(data.owner.isEmpty ? data.title : data.owner)
                         .font(DT.Typography.headline)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                    Text(data.secondLine.isEmpty ? PL.numeric(data.expiryDate) : data.secondLine)
+                    if !data.number.isEmpty {
+                        Text(data.number)
+                            .font(DT.Typography.captionEmphasized)
+                            .monospaced()
+                            .lineLimit(1)
+                    }
+                    if category == .drivingLicense {
+                        Text("Kat. B")
+                            .font(DT.Typography.captionEmphasized)
+                            .padding(.horizontal, DT.Space.xs)
+                            .background(ink.opacity(0.12), in: Capsule())
+                    }
+                    Text("Ważny do \(PL.numeric(data.expiryDate))")
                         .font(DT.Typography.caption)
                         .opacity(0.8)
-                        .lineLimit(1)
                         .monospacedDigit()
                 }
-                Spacer(minLength: DT.Space.xs)
-                let count = data.bigCount
-                HStack(alignment: .lastTextBaseline, spacing: DT.Space.xxs) {
-                    Text(count.value)
-                        .font(count.unit == nil ? DT.Typography.title : DT.Typography.cardNumber)
-                        .contentTransition(.numericText(countsDown: true))
-                    if let unit = count.unit {
-                        Text(unit).font(DT.Typography.footnoteEmphasized).opacity(0.85)
-                    }
-                }
-                .lineLimit(1)
-                .fixedSize()
+                Spacer(minLength: 0)
+                count
+            }
+            if category == .idCard {
+                Spacer(minLength: 0)
+                MRZLines(text: mrz, ink: ink, lines: 1)
             }
         }
         .padding(DT.Space.md)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
+
+    /// Subskrypcja: ciemna karta z neonową poświatą i ceną.
+    private var subscriptionLayout: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: DT.Space.xs) {
+                Image(systemName: "play.rectangle.fill").font(DT.Typography.subheadlineEmphasized)
+                    .foregroundStyle(LinearGradient(colors: DT.Palette.Card.subscriptionGlow, startPoint: .leading, endPoint: .trailing))
+                Text(category.cardLabel)
+                    .font(DT.Typography.overline)
+                    .kerning(DT.Size.hairline)
+                Spacer()
+                Text("Płatność za")
+                    .font(DT.Typography.caption)
+                    .opacity(0.7)
+            }
+            Spacer(minLength: 0)
+            Text(data.title)
+                .font(DT.Typography.title2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            HStack(alignment: .lastTextBaseline) {
+                if let price = data.price {
+                    Text(PL.money(price))
+                        .font(DT.Typography.title3)
+                        .foregroundStyle(LinearGradient(colors: DT.Palette.Card.subscriptionGlow, startPoint: .leading, endPoint: .trailing))
+                    Text("/ " + (data.billingCycle ?? .monthly).shortTitle)
+                        .font(DT.Typography.footnote)
+                        .opacity(0.7)
+                } else {
+                    Text("Następna płatność \(PL.numeric(data.expiryDate))")
+                        .font(DT.Typography.footnote)
+                        .opacity(0.8)
+                }
+                Spacer(minLength: DT.Space.xs)
+                count
+            }
+        }
+        .padding(DT.Space.md)
+    }
+
+    /// Udawana strefa odczytu maszynowego z danych dokumentu.
+    private var mrz: String {
+        let name = (data.owner.isEmpty ? data.title : data.owner)
+            .uppercased()
+            .folding(options: .diacriticInsensitive, locale: PL.locale)
+            .replacingOccurrences(of: " ", with: "<")
+            .filter { $0.isLetter || $0 == "<" }
+        let number = data.number.uppercased().filter { $0.isLetter || $0.isNumber }
+        let date = PL.numeric(data.expiryDate).filter(\.isNumber)
+        return "P<POL\(name)<<<<<<<<<<<<<<<<<<<<\n\(number.isEmpty ? "XX0000000" : number)<POL<\(date)<<<<<<<<"
+    }
+
+    // MARK: Mała karta (rzędy)
 
     private var compactContent: some View {
         VStack(alignment: .leading, spacing: DT.Space.xxs) {
-            Image(systemName: data.category.symbol)
-                .font(DT.Typography.subheadlineEmphasized)
+            HStack {
+                Image(systemName: category.symbol)
+                    .font(DT.Typography.subheadlineEmphasized)
+                Spacer()
+                if category == .drivingLicense {
+                    Text("PL")
+                        .font(DT.Typography.overline)
+                        .foregroundStyle(DT.Palette.Card.euStar)
+                        .padding(.horizontal, DT.Space.xxs)
+                        .background(DT.Palette.Card.euBlue, in: RoundedRectangle(cornerRadius: DT.Radius.xs, style: .continuous))
+                }
+            }
             Spacer(minLength: 0)
+            Text(category.cardLabel)
+                .font(DT.Typography.overline)
+                .opacity(0.75)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(data.title)
                 .font(DT.Typography.subheadlineEmphasized)
                 .lineLimit(1)
@@ -246,6 +445,226 @@ struct DocCard: View {
         }
         .padding(DT.Space.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+// MARK: - Wzory i elementy kart
+
+/// Tło karty zależne od rodzaju: gilosz na polisach, kropki, wielki znak itd.
+struct CardPattern: View {
+    let category: DocumentCategory
+    let ink: Color
+
+    var body: some View {
+        switch category {
+        case .carInsurance, .homeInsurance:
+            ZStack {
+                GuillocheShape().stroke(ink.opacity(0.12), lineWidth: DT.Size.hairline)
+                Image(systemName: category == .carInsurance ? "shield.lefthalf.filled" : "house.fill")
+                    .resizable().scaledToFit()
+                    .foregroundStyle(ink.opacity(0.10))
+                    .padding(DT.Space.lg)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .offset(x: DT.Space.xl, y: DT.Space.lg)
+            }
+        case .carInspection:
+            Image(systemName: "car.side.fill")
+                .resizable().scaledToFit()
+                .foregroundStyle(ink.opacity(0.08))
+                .padding(.vertical, DT.Space.xl)
+                .offset(x: -DT.Space.xl, y: DT.Space.xl)
+        case .passport:
+            GuillocheShape().stroke(ink.opacity(0.10), lineWidth: DT.Size.hairline / 2)
+        case .idCard, .drivingLicense:
+            ZStack {
+                GuillocheShape().stroke(ink.opacity(0.10), lineWidth: DT.Size.hairline / 2)
+                RadialGradient(colors: [DT.Palette.Card.highlight.opacity(0.5), .clear], center: .bottomTrailing,
+                               startRadius: 0, endRadius: DT.Size.card.width * 0.7)
+            }
+        case .subscription:
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(colors: DT.Palette.Card.subscriptionGlow, startPoint: .top, endPoint: .bottom))
+                    .frame(width: DT.Size.card.height, height: DT.Size.card.height)
+                    .blur(radius: DT.Space.xxl)
+                    .offset(x: DT.Size.card.width * 0.45, y: -DT.Space.xl)
+                    .opacity(0.7)
+                DotGrid().fill(ink.opacity(0.08))
+            }
+        case .other:
+            DotGrid().fill(ink.opacity(0.10))
+        }
+    }
+}
+
+/// Fale jak na banknotach i dokumentach.
+struct GuillocheShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let amplitude = rect.height * 0.08
+        for i in 0..<15 {
+            let base = rect.height * (0.14 + 0.05 * CGFloat(i))
+            let phase = Double(i) * 0.45
+            path.move(to: CGPoint(x: 0, y: base))
+            var x: CGFloat = 0
+            while x <= rect.width {
+                let t = Double(x / rect.width) * .pi * 2.4 + phase
+                path.addLine(to: CGPoint(x: x, y: base + CGFloat(sin(t)) * amplitude))
+                x += DT.Space.xxs
+            }
+        }
+        return path
+    }
+}
+
+/// Siatka kropek.
+struct DotGrid: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let step = DT.Space.md
+        var y = step / 2
+        while y < rect.height {
+            var x = step / 2
+            while x < rect.width {
+                path.addEllipse(in: CGRect(x: x, y: y, width: DT.Size.hairline * 2, height: DT.Size.hairline * 2))
+                x += step
+            }
+            y += step
+        }
+        return path
+    }
+}
+
+/// Okrągła naklejka przeglądu z miesiącem i rokiem.
+struct InspectionSticker: View {
+    let month: Int
+    let year: Int
+    let ink: Color
+
+    var body: some View {
+        ZStack {
+            Circle().fill(DT.Palette.Card.highlight.opacity(0.9))
+            Circle().strokeBorder(ink.opacity(0.8), lineWidth: DT.Size.hairline * 2).padding(DT.Space.xxs)
+            ForEach(1...12, id: \.self) { m in
+                Text("\(m)")
+                    .font(DT.Typography.caption)
+                    .fontWeight(m == month ? .heavy : .regular)
+                    .foregroundStyle(m == month ? DT.Palette.dangerFill : ink.opacity(0.6))
+                    .offset(y: -(DT.Size.sticker / 2 - DT.Space.sm))
+                    .rotationEffect(.degrees(Double(m) * 30))
+            }
+            VStack(spacing: 0) {
+                Text(String(format: "%02d", month))
+                    .font(DT.Typography.title2)
+                Text(verbatim: String(year))
+                    .font(DT.Typography.captionEmphasized)
+            }
+            .foregroundStyle(ink)
+        }
+        .frame(width: DT.Size.sticker, height: DT.Size.sticker)
+        .rotationEffect(.degrees(-8))
+        .shadow(color: DT.Palette.shadow, radius: DT.Space.xs, y: DT.Space.xxs)
+    }
+}
+
+/// Miejsce na zdjęcie (sylwetka).
+struct PhotoBox: View {
+    let ink: Color
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous)
+            .fill(ink.opacity(0.12))
+            .frame(width: DT.Size.photo.width, height: DT.Size.photo.height)
+            .overlay(alignment: .bottom) {
+                Image(systemName: "person.fill")
+                    .resizable().scaledToFit()
+                    .foregroundStyle(ink.opacity(0.35))
+                    .padding(.horizontal, DT.Space.xs)
+                    .padding(.top, DT.Space.sm)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Niebieska plakietka UE z kręgiem gwiazdek i „PL”.
+struct EUBadge: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: DT.Radius.xs, style: .continuous)
+            .fill(DT.Palette.Card.euBlue)
+            .frame(width: DT.Size.euBadge.width, height: DT.Size.euBadge.height)
+            .overlay {
+                VStack(spacing: DT.Size.hairline * 2) {
+                    ZStack {
+                        ForEach(0..<12, id: \.self) { i in
+                            Circle().fill(DT.Palette.Card.euStar)
+                                .frame(width: DT.Size.hairline * 3, height: DT.Size.hairline * 3)
+                                .offset(y: -DT.Space.xs - DT.Size.hairline * 2)
+                                .rotationEffect(.degrees(Double(i) * 30))
+                        }
+                    }
+                    .frame(height: DT.Space.lg)
+                    Text("PL")
+                        .font(DT.Typography.captionEmphasized)
+                        .foregroundStyle(DT.Palette.Card.ink)
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Strefa MRZ: dwa wiersze „<<<” czcionką o stałej szerokości.
+struct MRZLines: View {
+    let text: String
+    let ink: Color
+    var lines = 2
+
+    var body: some View {
+        Text(text.split(separator: "\n").prefix(lines).joined(separator: "\n"))
+            .font(DT.Typography.caption.monospaced())
+            .foregroundStyle(ink.opacity(0.55))
+            .lineLimit(lines)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Znak aplikacji: wachlarz trzech kart i licznik z literą T.
+struct LogoMark: View {
+    var size: CGFloat = DT.Size.avatar
+
+    var body: some View {
+        ZStack {
+            card(DT.Palette.Card.carInsurance, angle: 16, dx: -0.1, dy: -0.12)
+            card(DT.Palette.Card.homeInsurance, angle: 6, dx: -0.02, dy: -0.04)
+            card(DT.Palette.Card.subscriptionGlow, angle: -6, dx: 0.04, dy: 0.06)
+                .overlay {
+                    ZStack {
+                        Circle()
+                            .trim(from: 0, to: 0.8)
+                            .stroke(DT.Palette.Card.ink, style: StrokeStyle(lineWidth: size * 0.05, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                        Text("T")
+                            .font(.system(size: size * 0.26, weight: .heavy, design: .rounded))
+                            .foregroundStyle(DT.Palette.Card.ink)
+                    }
+                    .frame(width: size * 0.36, height: size * 0.36)
+                    .rotationEffect(.degrees(-6))
+                    .offset(x: size * 0.04, y: size * 0.06)
+                }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    private func card(_ colors: [Color], angle: Double, dx: CGFloat, dy: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: size * 0.08, style: .continuous)
+            .fill(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .frame(width: size * 0.82, height: size * 0.52)
+            .shadow(color: DT.Palette.Card.lowlight.opacity(0.3), radius: size * 0.04, y: size * 0.03)
+            .rotationEffect(.degrees(angle))
+            .offset(x: size * dx, y: size * dy)
     }
 }
 
@@ -480,12 +899,12 @@ struct MiniCard: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous)
-            .fill(LinearGradient(colors: category.group.gradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .fill(LinearGradient(colors: category.cardGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
             .frame(width: DT.Size.miniCard.width, height: DT.Size.miniCard.height)
             .overlay {
                 Image(systemName: category.symbol)
                     .font(DT.Typography.footnoteEmphasized)
-                    .foregroundStyle(DT.Palette.Card.ink)
+                    .foregroundStyle(category.cardInk)
             }
             .accessibilityHidden(true)
     }

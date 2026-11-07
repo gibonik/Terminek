@@ -24,6 +24,8 @@ struct HomeView: View {
                     carousel.riseIn(3)
                     rails
                     upcoming
+                    AddDocumentGrid()
+                        .padding(.horizontal, DT.Space.gutter)
                 } else {
                     EmptyHome().riseIn(1)
                 }
@@ -43,22 +45,16 @@ struct HomeView: View {
 
     private var header: some View {
         HStack(spacing: DT.Space.sm) {
-            ZStack {
-                Circle().fill(LinearGradient(colors: [DT.Palette.accent, DT.Palette.accentAlt],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
-                Image(systemName: "doc.text.fill")
-                    .font(DT.Typography.subheadlineEmphasized)
-                    .foregroundStyle(DT.Palette.onAccent)
-            }
-            .frame(width: DT.Size.avatar, height: DT.Size.avatar)
-            .accessibilityHidden(true)
+            LogoMark(size: DT.Size.avatar + DT.Space.xs)
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(PL.dayAndMonth(.now))
                     .font(DT.Typography.footnote)
                     .foregroundStyle(DT.Palette.textSecondary)
-                Text("Terminy")
+                Text("Terminek")
                     .font(DT.Typography.title2)
+                    .foregroundStyle(LinearGradient(colors: [DT.Palette.textPrimary, DT.Palette.accentText],
+                                                    startPoint: .leading, endPoint: .trailing))
             }
             Spacer()
             RoundIconButton(symbol: "magnifyingglass", label: "Szukaj") {
@@ -248,13 +244,13 @@ struct HeroBanner: View {
         .padding(DT.Space.gutter)
         .frame(maxWidth: .infinity, minHeight: DT.Size.hero, alignment: .topLeading)
         .background {
-            LiveGradient(colors: document.group.gradient)
+            LiveGradient(colors: document.category.heroGradient)
                 .saturation(days < 0 ? 0.5 : 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous)
             .strokeBorder(DT.Palette.Card.highlight.opacity(0.15), lineWidth: DT.Size.hairline))
-        .shadow(color: document.group.color.opacity(0.4), radius: DT.Space.xl, y: DT.Space.md)
+        .shadow(color: document.category.cardGlow.opacity(0.4), radius: DT.Space.xl, y: DT.Space.md)
         .padding(.horizontal, DT.Space.gutter)
         .scrollTransition(.interactive, axis: .vertical) { content, phase in
             content
@@ -335,8 +331,6 @@ struct StatTile: View {
 
 struct EmptyHome: View {
     @Environment(AppRouter.self) private var router
-    private let common: [DocumentCategory] = [.carInsurance, .carInspection, .idCard, .drivingLicense, .passport, .subscription]
-
     var body: some View {
         VStack(alignment: .leading, spacing: DT.Space.lg) {
             VStack(alignment: .leading, spacing: DT.Space.sm) {
@@ -377,43 +371,76 @@ struct EmptyHome: View {
             .clipShape(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous))
             .shadow(color: DT.Palette.accent.opacity(0.4), radius: DT.Space.xl, y: DT.Space.md)
 
-            SectionHeader(text: "Najczęściej dodawane")
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: DT.Space.sm), GridItem(.flexible(), spacing: DT.Space.sm)],
-                      spacing: DT.Space.sm) {
-                ForEach(Array(common.enumerated()), id: \.element) { index, category in
-                    CategoryTile(category: category) { router.add(category) }
-                        .riseIn(2 + index)
-                }
-            }
+            AddDocumentGrid()
         }
         .padding(.horizontal, DT.Space.gutter)
     }
 }
 
-/// Kafelek rodzaju dokumentu w gradiencie grupy.
+/// Kafelki wszystkich rodzajów dokumentów, które można dodać.
+struct AddDocumentGrid: View {
+    @Environment(AppRouter.self) private var router
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DT.Space.sm) {
+            SectionHeader(text: "Dodaj dokument", actionTitle: DocumentScanner.isSupported ? "Skanuj" : nil) {
+                router.add(scan: true)
+            }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: DT.Space.sm), GridItem(.flexible(), spacing: DT.Space.sm)],
+                      spacing: DT.Space.sm) {
+                ForEach(Array(DocumentCategory.allCases.enumerated()), id: \.element) { index, category in
+                    CategoryTile(category: category) { router.add(category) }
+                        .riseIn(2 + index)
+                }
+            }
+        }
+    }
+}
+
+/// Kafelek rodzaju dokumentu: mała karta w wyglądzie tego dokumentu.
 struct CategoryTile: View {
     let category: DocumentCategory
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 0) {
-                Image(systemName: category.symbol)
-                    .font(DT.Typography.title3)
+            VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                HStack {
+                    Image(systemName: category.symbol)
+                        .font(DT.Typography.title3)
+                    Spacer()
+                    Image(systemName: "plus.circle.fill")
+                        .font(DT.Typography.headline)
+                        .opacity(0.8)
+                }
                 Spacer(minLength: DT.Space.xs)
+                Text(category.cardLabel)
+                    .font(DT.Typography.overline)
+                    .kerning(DT.Size.hairline)
+                    .opacity(0.7)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Text(category.title)
                     .font(DT.Typography.subheadlineEmphasized)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
             }
-            .foregroundStyle(DT.Palette.Card.ink)
+            .foregroundStyle(category.cardInk)
             .padding(DT.Space.md)
-            .frame(maxWidth: .infinity, minHeight: DT.Size.tile, alignment: .leading)
-            .background(LinearGradient(colors: category.group.gradient, startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
-            .shadow(color: category.group.color.opacity(0.3), radius: DT.Space.sm, y: DT.Space.xs)
+            .frame(maxWidth: .infinity, minHeight: DT.Size.tile + DT.Space.lg, alignment: .leading)
+            .background {
+                ZStack {
+                    LinearGradient(colors: category.cardGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    CardPattern(category: category, ink: category.cardInk)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
+            }
+            .overlay(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous)
+                .strokeBorder(DT.Palette.Card.highlight.opacity(0.25), lineWidth: DT.Size.hairline))
+            .shadow(color: category.cardGlow.opacity(0.3), radius: DT.Space.sm, y: DT.Space.xs)
         }
         .buttonStyle(CardPressStyle())
+        .accessibilityLabel("Dodaj: \(category.title)")
     }
 }

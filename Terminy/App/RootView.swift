@@ -69,13 +69,10 @@ struct LockView: View {
                         .frame(width: DT.Size.lockHalo, height: DT.Size.lockHalo)
                         .scaleEffect(pulse ? 1.15 : 0.95)
                         .opacity(pulse ? 0 : 1)
-                    Circle().fill(DT.Palette.accent).frame(width: DT.Size.lockBadge, height: DT.Size.lockBadge)
-                    Image(systemName: "lock.fill")
-                        .font(DT.Typography.title2)
-                        .foregroundStyle(DT.Palette.onAccent)
+                    LogoMark(size: DT.Size.lockBadge)
                 }
                 .padding(.bottom, DT.Space.xs)
-                Text("Terminy są zablokowane")
+                Text("Terminek jest zablokowany")
                     .font(DT.Typography.title)
                     .foregroundStyle(DT.Palette.textPrimary)
                 if let error = lock.lastError {

@@ -23,7 +23,7 @@ struct CardDetailView: View {
             DT.Palette.background.ignoresSafeArea()
 
             // Tło z kolorów karty, które gaśnie ku dołowi.
-            LiveGradient(colors: document.group.gradient)
+            LiveGradient(colors: document.category.heroGradient)
                 .saturation(days < 0 ? 0.5 : 1)
                 .frame(height: DT.Size.detailHeader)
                 .mask(LinearGradient(colors: [DT.Palette.scrim, DT.Palette.scrim.opacity(0)], startPoint: .top, endPoint: .bottom))
