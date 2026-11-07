@@ -60,9 +60,9 @@ jobs:
           DEST=$(xcrun simctl list devices booted -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for v in d.values() for x in v))")
           mkdir -p build/shots
           xcrun simctl status_bar "$DEST" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
-          for look in light dark; do
+          for look in dark; do
             xcrun simctl ui "$DEST" appearance $look
-            for tab in home detail add calendar settings; do
+            for tab in home detail add calendar reminders settings; do
               xcrun simctl terminate "$DEST" pl.terminy.app || true
               xcrun simctl launch "$DEST" pl.terminy.app -demoData -startTab $tab
               sleep 5

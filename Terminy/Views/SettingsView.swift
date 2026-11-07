@@ -1,92 +1,93 @@
 import SwiftUI
 import SwiftData
-import UserNotifications
 
 struct SettingsView: View {
     @Environment(AppLock.self) private var lock
-    @Environment(\.openURL) private var openURL
-    @Environment(\.scenePhase) private var scenePhase
     @Query private var documents: [Document]
-
-    @AppStorage(NotificationScheduler.reminderHourKey) private var reminderHour = 9
-    @AppStorage(NotificationScheduler.offsetKey(30)) private var remind30 = true
-    @AppStorage(NotificationScheduler.offsetKey(7)) private var remind7 = true
-    @AppStorage(NotificationScheduler.offsetKey(0)) private var remind0 = true
-    @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system.rawValue
-    @State private var notificationsStatus: UNAuthorizationStatus = .notDetermined
-    @State private var testSent = 0
 
     var body: some View {
         @Bindable var lock = lock
-        NavigationStack {
-            Form {
-                if notificationsStatus == .denied {
-                    Section {
-                        Button {
-                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
-                        } label: {
-                            Label("Włącz powiadomienia", systemImage: "bell.slash")
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Ustawienia")
+                    .font(.brico(44, .heavy, relativeTo: .largeTitle))
+                    .tracking(-1.5)
+                    .padding(.horizontal, 4)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $lock.isEnabled) {
+                        row("faceid", "Zamek \(lock.biometryName)")
+                    }
+                    .tint(W.gold)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 60)
+                    .walletPanel()
+                    Text("Portfel zamknie się, gdy wyjdziesz z aplikacji.")
+                        .font(.footnote)
+                        .foregroundStyle(W.muted)
+                        .padding(.horizontal, 6)
+                }
+                .riseIn(0)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(spacing: 0) {
+                        HStack {
+                            row("wallet.pass", "W portfelu")
+                            Spacer()
+                            Text(documents.count == 1 ? "1 dokument" : "\(documents.count) dokumentów")
+                                .font(.brico(16, .bold))
+                                .foregroundStyle(W.muted)
                         }
-                    } footer: {
-                        Text("Powiadomienia są wyłączone w Ustawieniach iPhone'a, więc przypomnienia nie przyjdą.")
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 60)
+                        Rectangle().fill(W.stroke).frame(height: 1).padding(.leading, 56)
+                        HStack {
+                            row(TerminyApp.usesCloudKit ? "icloud" : "iphone", "Zapis")
+                            Spacer()
+                            Text(TerminyApp.usesCloudKit ? "iCloud" : "Tylko ten iPhone")
+                                .font(.brico(16, .bold))
+                                .foregroundStyle(W.muted)
+                        }
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 60)
                     }
-                }
-
-                Section {
-                    Toggle("30 dni przed terminem", isOn: $remind30)
-                    Toggle("Tydzień przed terminem", isOn: $remind7)
-                    Toggle("W dniu terminu", isOn: $remind0)
-                    Picker("Godzina", selection: $reminderHour) {
-                        ForEach(6..<23, id: \.self) { Text("\($0):00").tag($0) }
-                    }
-                    Button {
-                        testSent += 1
-                        let doc = documents.sorted { $0.expiryDate < $1.expiryDate }.first { $0.daysLeft() >= 0 } ?? documents.first
-                        Task { await NotificationScheduler.shared.sendTest(for: doc) }
-                    } label: {
-                        Label("Wyślij próbne powiadomienie", systemImage: "bell.badge")
-                            .symbolEffect(.bounce, value: testSent)
-                    }
-                } header: {
-                    Text("Przypomnienia")
-                } footer: {
-                    Text(testSent > 0
-                         ? "Powiadomienie przyjdzie za 5 sekund. Przytrzymaj je, żeby zobaczyć przyciski „Odnów” i „Przypomnij jutro”."
-                         : "Dotyczy wszystkich dokumentów z włączonymi przypomnieniami.")
-                }
-
-                Section {
-                    Toggle("Blokada \(lock.biometryName)", isOn: $lock.isEnabled)
-                } footer: {
-                    Text("Terminy zablokują się, gdy wyjdziesz z aplikacji.")
-                }
-
-                Section("Wygląd") {
-                    Picker("Motyw", selection: $appearance) {
-                        ForEach(AppAppearance.allCases) { Text($0.title).tag($0.rawValue) }
-                    }
-                }
-
-                Section {
-                    LabeledContent("Dokumenty", value: "\(documents.count)")
-                    LabeledContent("Zapis", value: TerminyApp.usesCloudKit ? "iCloud" : "Tylko ten iPhone")
-                } header: {
-                    Text("Dane")
-                } footer: {
+                    .walletPanel()
                     Text(TerminyApp.usesCloudKit
-                         ? "Dane są w Twoim prywatnym iCloud i synchronizują się między urządzeniami."
-                         : "Dane są zapisane tylko na tym iPhonie, bo aplikacja jest wgrana bez iCloud.")
+                         ? "Dokumenty są w Twoim prywatnym iCloud i synchronizują się między urządzeniami."
+                         : "Dokumenty są zapisane tylko na tym iPhonie, bo aplikacja jest wgrana bez iCloud.")
+                        .font(.footnote)
+                        .foregroundStyle(W.muted)
+                        .padding(.horizontal, 6)
                 }
+                .riseIn(1)
+
+                VStack(spacing: 6) {
+                    Image(systemName: "wallet.pass.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(W.gold)
+                    Text("Terminy").font(.brico(17, .bold))
+                    Text("Wersja \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
+                        .font(.footnote)
+                        .foregroundStyle(W.muted)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 24)
+                .riseIn(2)
             }
-            .navigationTitle("Ustawienia")
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+            .padding(.bottom, 120)
         }
-        .onChange(of: reminderSignature) {
-            Task { await NotificationScheduler.shared.reschedule(documents) }
-        }
-        .task(id: scenePhase) {
-            notificationsStatus = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
-        }
+        .scrollIndicators(.hidden)
     }
 
-    private var reminderSignature: String { "\(reminderHour)-\(remind30)-\(remind7)-\(remind0)" }
+    private func row(_ symbol: String, _ title: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(W.gold)
+                .frame(width: 26)
+            Text(title).font(.brico(16, .bold)).foregroundStyle(W.cream)
+        }
+    }
 }
