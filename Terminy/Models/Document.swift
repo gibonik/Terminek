@@ -67,7 +67,7 @@ final class Document {
             return values.isEmpty ? nil : Array(Set(values)).sorted(by: >)
         }
         set {
-            customOffsetsRaw = (newValue ?? []).sorted(by: >).map(String.init).joined(separator: ",")
+            customOffsetsRaw = Set(newValue ?? []).sorted(by: >).map(String.init).joined(separator: ",")
         }
     }
 
