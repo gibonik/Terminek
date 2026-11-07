@@ -33,7 +33,8 @@ enum ListFilter: Hashable {
 struct EditorRequest: Identifiable {
     let id = UUID()
     var document: Document?
-    var category: DocumentCategory = .other
+    /// `nil` = najpierw pytamy „Co dodajesz?”.
+    var category: DocumentCategory?
     var startScanning = false
 }
 
@@ -66,7 +67,7 @@ final class AppRouter {
         withAnimation(.spring(duration: 0.35, bounce: 0.2)) { tab = .documents }
     }
 
-    func add(_ category: DocumentCategory = .other, scan: Bool = false) {
+    func add(_ category: DocumentCategory? = nil, scan: Bool = false) {
         present(EditorRequest(document: nil, category: category, startScanning: scan))
     }
 
@@ -106,7 +107,7 @@ struct MainTabView: View {
             }
 
             FloatingTabBar(selection: $router.tab) {
-                router.showingAdd = true
+                router.add()
             }
             .padding(.horizontal, 28)
             .padding(.bottom, 8)
@@ -116,10 +117,6 @@ struct MainTabView: View {
         .environment(router)
         .sheet(item: $router.selected, onDismiss: { router.showPendingEditor() }) { doc in
             DocumentSheet(document: doc)
-                .environment(router)
-        }
-        .sheet(isPresented: $router.showingAdd, onDismiss: { router.showPendingEditor() }) {
-            AddDocumentSheet()
                 .environment(router)
         }
         .sheet(item: $router.editor) { request in

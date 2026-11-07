@@ -226,69 +226,6 @@ struct DocumentSheet: View {
     }
 }
 
-/// Arkusz „Nowy dokument”: skan albo wybór rodzaju.
-struct AddDocumentSheet: View {
-    @Environment(AppRouter.self) private var router
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Nowy dokument")
-                .font(.system(size: 22, weight: .heavy)).tracking(-0.5)
-                .foregroundStyle(Palette.ink)
-
-            Button { router.add(scan: true) } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "doc.viewfinder")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Palette.accentInk)
-                        .frame(width: 46, height: 46)
-                        .background(Palette.accent, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Zeskanuj aparatem").font(.system(size: 16, weight: .heavy))
-                        Text("Data ważności odczyta się sama").font(.system(size: 12, weight: .semibold)).opacity(0.7)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .heavy)).opacity(0.5)
-                }
-                .foregroundStyle(Palette.bg)
-                .padding(16)
-                .background(Palette.ink, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
-            .buttonStyle(PressScaleStyle())
-
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(DocumentCategory.allCases) { cat in
-                    Button { router.add(cat) } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: cat.symbol)
-                                .font(.system(size: 15, weight: .bold))
-                                .frame(width: 22)
-                            Text(cat == .other ? "Inny dokument" : cat.title)
-                                .font(.system(size: 14, weight: .heavy))
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.85)
-                                .multilineTextAlignment(.leading)
-                            Spacer(minLength: 0)
-                        }
-                        .foregroundStyle(cat.group.ink)
-                        .padding(.horizontal, 12)
-                        .frame(height: 58)
-                        .background(cat.group.color, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    }
-                    .buttonStyle(PressScaleStyle())
-                }
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 24)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(470), .large])
-        .presentationDragIndicator(.visible)
-        .presentationCornerRadius(34)
-        .presentationBackground(Palette.panel)
-    }
-}
-
 /// Własne okienko potwierdzenia usunięcia (zamiast systemowego).
 struct ConfirmDeleteSheet: View {
     let document: Document

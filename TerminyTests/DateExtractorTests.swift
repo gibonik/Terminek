@@ -102,4 +102,11 @@ final class CategoryGroupTests: XCTestCase {
         let soon = DateComponents(calendar: cal, year: 2026, month: 11, day: 13).date!
         XCTAssertEqual(DaysText.compact(to: soon, from: now), "6 dni")
     }
+
+    @MainActor
+    func testGuessesCategoryFromScanText() {
+        XCTAssertEqual(DocumentEditView.guessCategory(in: "RZECZPOSPOLITA POLSKA\nDOWÓD OSOBISTY"), .idCard)
+        XCTAssertEqual(DocumentEditView.guessCategory(in: "Passport / Paszport"), .passport)
+        XCTAssertNil(DocumentEditView.guessCategory(in: "Faktura VAT"))
+    }
 }

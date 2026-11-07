@@ -30,14 +30,17 @@ struct DocumentEditView: View {
     @State private var ocrFound = false
     @State private var showCalendar = false
     @State private var savedTick = 0
+    /// Krok 1 nowego dokumentu: „Co dodajesz?”.
+    @State private var picking = false
     @FocusState private var focused: Field?
 
     private enum Field { case title, owner, number, price, notes }
 
-    init(document: Document?, initialCategory: DocumentCategory = .other, startScanning: Bool = false) {
+    init(document: Document?, initialCategory: DocumentCategory? = nil, startScanning: Bool = false) {
         self.document = document
         self.startScanning = startScanning
-        let cat = document?.category ?? initialCategory
+        let cat = document?.category ?? initialCategory ?? .other
+        _picking = State(initialValue: document == nil && initialCategory == nil)
         _category = State(initialValue: cat)
         _title = State(initialValue: document?.title ?? "")
         _owner = State(initialValue: document?.owner ?? "")
@@ -64,13 +67,23 @@ struct DocumentEditView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     topBar
-                    preview
-                    scanSection
-                    categorySection
-                    detailsSection
-                    dateSection
-                    if category == .subscription { subscriptionSection }
-                    notesSection
+                    if picking {
+                        pickStep
+                            .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity),
+                                                    removal: .move(edge: .leading).combined(with: .opacity)))
+                    } else {
+                        VStack(alignment: .leading, spacing: 14) {
+                            selectedRow.riseIn(0)
+                            preview.riseIn(1)
+                            scanSection.riseIn(2)
+                            detailsSection.riseIn(3)
+                            dateSection.riseIn(4)
+                            if category == .subscription { subscriptionSection }
+                            notesSection.riseIn(5)
+                        }
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                removal: .opacity))
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 14)
@@ -79,7 +92,9 @@ struct DocumentEditView: View {
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
 
-            saveBar
+            if !picking {
+                saveBar.transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
         .presentationDetents([.large])
         .presentationCornerRadius(34)
@@ -128,7 +143,13 @@ struct DocumentEditView: View {
                 .font(.system(size: 17, weight: .heavy))
                 .foregroundStyle(Palette.ink)
             Spacer()
-            Color.clear.frame(width: 44, height: 44)
+            HStack(spacing: 4) {
+                if document == nil {
+                    Capsule().fill(Palette.ink).frame(width: 16, height: 6)
+                    Capsule().fill(picking ? Palette.line : Palette.ink).frame(width: 16, height: 6)
+                }
+            }
+            .frame(width: 44, alignment: .trailing)
         }
     }
 
@@ -267,39 +288,118 @@ struct DocumentEditView: View {
         .background(bg, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    // MARK: Rodzaj
+    // MARK: Krok 1: rodzaj
 
-    private var categorySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle("Rodzaj")
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach(DocumentCategory.allCases) { cat in
-                    let isOn = cat == category
-                    Button {
-                        withAnimation(.spring(duration: 0.35, bounce: 0.3)) { pick(cat) }
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: cat.symbol)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(isOn ? cat.group.ink : cat.group.color)
-                                .frame(width: 20)
-                            Text(cat == .other ? "Inny" : cat.title)
-                                .font(.system(size: 13, weight: .heavy))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.75)
-                            Spacer(minLength: 0)
+    private var pickStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Co dodajesz?")
+                    .font(.system(size: 30, weight: .heavy)).tracking(-1)
+                Text("Wybierz rodzaj, resztę podpowiemy.")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Palette.muted)
+            }
+            .foregroundStyle(Palette.ink)
+            .padding(.horizontal, 4)
+            .riseIn(0)
+
+            if DocumentScanner.isSupported {
+                Button { showingScanner = true } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "doc.viewfinder")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(Palette.accentInk)
+                            .frame(width: 48, height: 48)
+                            .background(Palette.accent, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Zeskanuj dokument").font(.system(size: 16, weight: .heavy))
+                            Text("Rozpoznamy rodzaj i datę ważności")
+                                .font(.system(size: 12, weight: .semibold)).opacity(0.7)
                         }
-                        .foregroundStyle(isOn ? cat.group.ink : Palette.ink)
-                        .padding(.horizontal, 12)
-                        .frame(height: 46)
-                        .background(isOn ? cat.group.color : Palette.panel,
-                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 14, weight: .heavy)).opacity(0.5)
                     }
-                    .buttonStyle(PressScaleStyle())
-                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                    .foregroundStyle(Palette.bg)
+                    .padding(16)
+                    .background(Palette.ink, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 }
+                .buttonStyle(PressScaleStyle())
+                .riseIn(1)
+            }
+
+            ForEach(Array(CategoryGroup.allCases.enumerated()), id: \.element) { index, group in
+                VStack(alignment: .leading, spacing: 8) {
+                    sectionTitle(group.title)
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                        ForEach(group.categories) { cat in
+                            Button {
+                                withAnimation(.spring(duration: 0.45, bounce: 0.2)) {
+                                    pick(cat)
+                                    picking = false
+                                }
+                            } label: {
+                                HStack(spacing: 10) {
+                                    Image(systemName: cat.symbol)
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(group.ink)
+                                        .frame(width: 36, height: 36)
+                                        .background(group.color, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    Text(cat == .other ? "Inny dokument" : cat.title)
+                                        .font(.system(size: 14, weight: .heavy))
+                                        .lineLimit(2)
+                                        .minimumScaleFactor(0.85)
+                                        .multilineTextAlignment(.leading)
+                                    Spacer(minLength: 0)
+                                }
+                                .foregroundStyle(Palette.ink)
+                                .padding(.horizontal, 12)
+                                .frame(height: 64)
+                                .background(Palette.panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                            }
+                            .buttonStyle(PressScaleStyle())
+                        }
+                    }
+                }
+                .riseIn(2 + index)
             }
         }
+    }
+
+    /// Wybrany rodzaj z przyciskiem „Zmień” (lista rodzajów jest wtedy schowana).
+    private var selectedRow: some View {
+        HStack(spacing: 12) {
+            Image(systemName: category.symbol)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(group.ink)
+                .frame(width: 40, height: 40)
+                .background(group.color, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+                .contentTransition(.symbolEffect(.replace))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(group.title.uppercased())
+                    .font(.system(size: 11, weight: .heavy)).tracking(0.5)
+                    .foregroundStyle(Palette.muted)
+                Text(category == .other ? "Inny dokument" : category.title)
+                    .font(.system(size: 16, weight: .heavy))
+                    .foregroundStyle(Palette.ink)
+            }
+            Spacer()
+            Button {
+                focused = nil
+                withAnimation(.spring(duration: 0.45, bounce: 0.2)) { picking = true }
+            } label: {
+                Text("Zmień")
+                    .font(.system(size: 13, weight: .heavy))
+                    .foregroundStyle(Palette.ink)
+                    .padding(.horizontal, 14)
+                    .frame(height: 36)
+                    .background(Palette.tile, in: Capsule())
+            }
+            .buttonStyle(PressScaleStyle())
+        }
+        .padding(.vertical, 8)
+        .padding(.leading, 10)
+        .padding(.trailing, 8)
+        .background(Palette.panel, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private func pick(_ cat: DocumentCategory) {
@@ -606,6 +706,10 @@ struct DocumentEditView: View {
         }
 
         withAnimation(.spring(duration: 0.45, bounce: 0.25)) {
+            if picking {
+                category = Self.guessCategory(in: text) ?? .other
+                picking = false
+            }
             if let date = DateExtractor().bestExpiryDate(in: text) {
                 expiryDate = date
                 ocrFound = true
@@ -615,6 +719,18 @@ struct DocumentEditView: View {
                 ocrMessage = "Nie udało się odczytać daty. Ustaw ją niżej."
             }
         }
+    }
+
+    /// Prosta podpowiedź rodzaju na podstawie tekstu ze skanu.
+    static func guessCategory(in text: String) -> DocumentCategory? {
+        let t = text.uppercased()
+        if t.contains("PASZPORT") || t.contains("PASSPORT") { return .passport }
+        if t.contains("DOWÓD OSOBISTY") || t.contains("DOWOD OSOBISTY") || t.contains("IDENTITY CARD") { return .idCard }
+        if t.contains("PRAWO JAZDY") || t.contains("DRIVING LICENCE") { return .drivingLicense }
+        if t.contains("BADANIE TECHNICZNE") || t.contains("PRZEGLĄD") || t.contains("STACJA KONTROLI") { return .carInspection }
+        if t.contains("ODPOWIEDZIALNOŚCI CYWILNEJ") || t.contains(" OC ") || t.contains("POJAZD") { return .carInsurance }
+        if t.contains("MIESZKANI") || t.contains("NIERUCHOMOŚ") || t.contains("DOMU") { return .homeInsurance }
+        return nil
     }
 
     private func save() {

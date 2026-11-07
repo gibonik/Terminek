@@ -158,7 +158,7 @@ struct DocumentListView: View {
                 .font(.system(size: 17, weight: .heavy))
                 .foregroundStyle(Palette.ink)
             if documents.isEmpty {
-                Button { router.showingAdd = true } label: {
+                Button { router.add() } label: {
                     Text("Dodaj dokument")
                         .font(.system(size: 15, weight: .heavy))
                         .foregroundStyle(Palette.accentInk)
