@@ -19,7 +19,7 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .tint(Palette.accent)
+        .tint(Palette.tint)
         .preferredColorScheme(AppAppearance(rawValue: appearance)?.colorScheme)
         .animation(.easeInOut(duration: 0.2), value: lock.isUnlocked)
         .onChange(of: scenePhase, initial: true) { _, phase in
@@ -59,33 +59,30 @@ struct LockView: View {
 
     var body: some View {
         ZStack {
-            Palette.bg.ignoresSafeArea()
-            VStack(spacing: 18) {
+            Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
+            VStack(spacing: 14) {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: 34, weight: .heavy))
-                    .foregroundStyle(Palette.accentInk)
-                    .frame(width: 84, height: 84)
-                    .background(Palette.accent, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 6)
                 Text("Terminy są zablokowane")
-                    .font(.system(size: 22, weight: .heavy)).tracking(-0.5)
-                    .foregroundStyle(Palette.ink)
+                    .font(.title2.weight(.bold))
                 if let error = lock.lastError {
                     Text(error)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Palette.muted)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 Button {
                     Task { await lock.unlock() }
                 } label: {
-                    Label("Odblokuj (\(lock.biometryName))", systemImage: "faceid")
-                        .font(.system(size: 15, weight: .heavy))
-                        .foregroundStyle(Palette.bg)
-                        .padding(.horizontal, 22)
-                        .frame(height: 52)
-                        .background(Palette.ink, in: Capsule())
+                    Label("Odblokuj", systemImage: "faceid")
+                        .font(.headline)
+                        .padding(.horizontal, 12)
                 }
-                .buttonStyle(PressScaleStyle())
+                .controlSize(.large)
+                .primaryButton()
+                .padding(.top, 10)
             }
             .padding(24)
         }
