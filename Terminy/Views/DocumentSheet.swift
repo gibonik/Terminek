@@ -1,0 +1,268 @@
+import SwiftUI
+import SwiftData
+
+/// Wysuwany od dołu arkusz ze szczegółami dokumentu.
+struct DocumentSheet: View {
+    @Bindable var document: Document
+    @Environment(AppRouter.self) private var router
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+
+    @AppStorage(NotificationScheduler.reminderHourKey) private var reminderHour = 9
+    @State private var confirmDelete = false
+    @State private var showScan = false
+    @State private var renewTick = 0
+
+    var body: some View {
+        let days = document.daysLeft()
+        let group = document.group
+
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(document.category.title.uppercased())
+                            .font(.system(size: 12, weight: .heavy)).tracking(0.5).opacity(0.75)
+                        Spacer()
+                        Image(systemName: document.category.symbol)
+                            .font(.system(size: 16, weight: .bold)).opacity(0.75)
+                    }
+                    Text(document.displayTitle)
+                        .font(.system(size: 24, weight: .heavy)).tracking(-0.6)
+                    Text(bigDays(days))
+                        .font(.system(size: 44, weight: .heavy).monospacedDigit()).tracking(-2)
+                        .contentTransition(.numericText())
+                    Text((days < 0 ? "Termin minął " : "Ważne do ") + PL.date(document.expiryDate))
+                        .font(.system(size: 13, weight: .semibold)).opacity(0.8)
+                        .contentTransition(.numericText())
+                }
+                .foregroundStyle(days < 0 ? Color.white : group.ink)
+                .padding(18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(days < 0 ? Palette.alert : group.color,
+                            in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+                HStack(spacing: 8) {
+                    infoTile(value: "30 dni", caption: "przypomnienie", on: reminder(30))
+                    infoTile(value: "7 dni", caption: "przypomnienie", on: reminder(7))
+                    infoTile(value: "W dniu", caption: String(format: "o %d:00", reminderHour), on: reminder(0))
+                }
+
+                if hasDetails {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !document.owner.isEmpty { row("Czyje", document.owner) }
+                        if !document.number.isEmpty { row("Numer", document.number) }
+                        if document.category == .subscription, let price = document.price {
+                            row("Cena", PL.money(price) + " / " + (document.billingCycle ?? .monthly).shortTitle)
+                        }
+                        if !document.notes.isEmpty { row("Notatki", document.notes) }
+                    }
+                    .padding(.horizontal, 14)
+                    .background(Palette.tile, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+
+                if let data = document.scanImageData, let image = UIImage(data: data) {
+                    Button { showScan = true } label: {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 120)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .overlay(alignment: .bottomLeading) {
+                                Label("Skan", systemImage: "doc.viewfinder")
+                                    .font(.system(size: 12, weight: .heavy))
+                                    .padding(.horizontal, 10).padding(.vertical, 5)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .padding(10)
+                            }
+                    }
+                    .buttonStyle(PressScaleStyle(scale: 0.98))
+                }
+
+                HStack(spacing: 8) {
+                    Menu {
+                        Button { router.edit(document) } label: { Label("Edytuj", systemImage: "pencil") }
+                        Button(role: .destructive) { confirmDelete = true } label: { Label("Usuń", systemImage: "trash") }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 18, weight: .heavy))
+                            .foregroundStyle(Palette.ink)
+                            .frame(width: 52, height: 52)
+                            .background(Palette.tile, in: Circle())
+                    }
+                    .accessibilityLabel("Więcej")
+
+                    Button { router.edit(document) } label: {
+                        Text("Edytuj")
+                            .font(.system(size: 15, weight: .heavy))
+                            .foregroundStyle(Palette.ink)
+                            .padding(.horizontal, 20)
+                            .frame(height: 52)
+                            .background(Palette.tile, in: Capsule())
+                    }
+                    .buttonStyle(PressScaleStyle())
+
+                    Button(action: renew) {
+                        Label("Odnowione", systemImage: "checkmark")
+                            .font(.system(size: 15, weight: .heavy))
+                            .foregroundStyle(Palette.bg)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(Palette.ink, in: Capsule())
+                    }
+                    .buttonStyle(PressScaleStyle())
+                }
+                Text("„Odnowione” przesunie termin na \(PL.date(document.renewedExpiryDate())).")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.muted)
+                    .padding(.horizontal, 4)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 22)
+            .padding(.bottom, 12)
+        }
+        .scrollIndicators(.hidden)
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(34)
+        .presentationBackground(Palette.panel)
+        .sensoryFeedback(.success, trigger: renewTick)
+        .confirmationDialog("Usunąć ten dokument?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Usuń", role: .destructive) {
+                dismiss()
+                context.delete(document)
+            }
+        }
+        .fullScreenCover(isPresented: $showScan) {
+            ScanPreview(data: document.scanImageData)
+        }
+    }
+
+    private var hasDetails: Bool {
+        !document.owner.isEmpty || !document.number.isEmpty || !document.notes.isEmpty
+            || (document.category == .subscription && document.price != nil)
+    }
+
+    private func reminder(_ offset: Int) -> Bool {
+        document.remindersEnabled && NotificationScheduler.enabledOffsets().contains(offset)
+    }
+
+    private func bigDays(_ days: Int) -> String {
+        switch days {
+        case ..<0: "\(-days) \(DaysText.dni(-days)) po"
+        case 0: "Dziś"
+        case 1: "Jutro"
+        default: DaysText.short(days)
+        }
+    }
+
+    private func renew() {
+        withAnimation(.spring(duration: 0.6, bounce: 0.3)) { document.renew() }
+        renewTick += 1
+    }
+
+    private func infoTile(value: String, caption: String, on: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value).font(.system(size: 15, weight: .heavy))
+            Text(on ? caption : "wyłączone").font(.system(size: 11, weight: .semibold)).foregroundStyle(Palette.muted)
+        }
+        .foregroundStyle(Palette.ink)
+        .opacity(on ? 1 : 0.5)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Palette.tile, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label).font(.system(size: 14, weight: .semibold)).foregroundStyle(Palette.muted)
+            Spacer(minLength: 12)
+            Text(value)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Palette.ink)
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+        }
+        .padding(.vertical, 12)
+    }
+}
+
+/// Arkusz „Nowy dokument”: skan albo wybór rodzaju.
+struct AddDocumentSheet: View {
+    @Environment(AppRouter.self) private var router
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Nowy dokument")
+                .font(.system(size: 22, weight: .heavy)).tracking(-0.5)
+                .foregroundStyle(Palette.ink)
+
+            Button { router.add(scan: true) } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: "doc.viewfinder")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Palette.accentInk)
+                        .frame(width: 46, height: 46)
+                        .background(Palette.accent, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Zeskanuj aparatem").font(.system(size: 16, weight: .heavy))
+                        Text("Data ważności odczyta się sama").font(.system(size: 12, weight: .semibold)).opacity(0.7)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .heavy)).opacity(0.5)
+                }
+                .foregroundStyle(Palette.bg)
+                .padding(16)
+                .background(Palette.ink, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+            .buttonStyle(PressScaleStyle())
+
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(DocumentCategory.allCases) { cat in
+                    Button { router.add(cat) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: cat.symbol)
+                                .font(.system(size: 15, weight: .bold))
+                                .frame(width: 22)
+                            Text(cat == .other ? "Inny dokument" : cat.title)
+                                .font(.system(size: 14, weight: .heavy))
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.85)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                        }
+                        .foregroundStyle(cat.group.ink)
+                        .padding(.horizontal, 12)
+                        .frame(height: 58)
+                        .background(cat.group.color, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(PressScaleStyle())
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 24)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(470), .large])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(34)
+        .presentationBackground(Palette.panel)
+    }
+}
+
+struct ScanPreview: View {
+    let data: Data?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let data, let image = UIImage(data: data) {
+                    Image(uiImage: image).resizable().scaledToFit()
+                }
+            }
+            .toolbar { Button("Zamknij") { dismiss() } }
+        }
+    }
+}

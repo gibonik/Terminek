@@ -65,4 +65,30 @@ final class NotificationPlanTests: XCTestCase {
         let plan = NotificationScheduler.plannedReminders(for: [soon, muted], hour: 9, now: now)
         XCTAssertEqual(plan.map(\.identifier), ["\(soon.id.uuidString)-7", "\(soon.id.uuidString)-0"])
     }
+
+    func testRespectsChosenOffsets() {
+        let cal = Calendar.current
+        let now = DateComponents(calendar: cal, year: 2026, month: 11, day: 6, hour: 12).date!
+        let expiry = DateComponents(calendar: cal, year: 2027, month: 1, day: 31).date!
+        let doc = Document(title: "OC", category: .carInsurance, expiryDate: expiry)
+
+        let plan = NotificationScheduler.plannedReminders(for: [doc], hour: 9, now: now, offsets: [7])
+        XCTAssertEqual(plan.count, 1)
+    }
+}
+
+final class CategoryGroupTests: XCTestCase {
+    func testEveryCategoryHasAGroup() {
+        let grouped = CategoryGroup.allCases.flatMap(\.categories)
+        XCTAssertEqual(Set(grouped), Set(DocumentCategory.allCases))
+        XCTAssertEqual(DocumentCategory.homeInsurance.group, .home)
+        XCTAssertEqual(DocumentCategory.drivingLicense.group, .auto)
+    }
+
+    func testPolishYearForms() {
+        XCTAssertEqual(DaysText.short(1549), "4 lata")
+        XCTAssertEqual(DaysText.short(2480), "6 lat")
+        XCTAssertEqual(DaysText.short(-2), "2 dni po")
+        XCTAssertEqual(DaysText.short(6), "6 dni")
+    }
 }

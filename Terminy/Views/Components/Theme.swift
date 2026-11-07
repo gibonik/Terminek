@@ -1,42 +1,150 @@
 import SwiftUI
+import UIKit
 
-/// Kolory pilności: czerwony (po terminie), pomarańczowy (≤ 7 dni), żółty (≤ 30 dni), zielony.
-enum Urgency {
-    case expired, critical, soon, ok
+// MARK: - Kolory
 
-    init(daysLeft: Int) {
-        switch daysLeft {
-        case ..<0: self = .expired
-        case 0...7: self = .critical
-        case 8...30: self = .soon
-        default: self = .ok
+extension UIColor {
+    convenience init(hex: UInt32, alpha: CGFloat = 1) {
+        self.init(
+            red: CGFloat((hex >> 16) & 0xFF) / 255,
+            green: CGFloat((hex >> 8) & 0xFF) / 255,
+            blue: CGFloat(hex & 0xFF) / 255,
+            alpha: alpha
+        )
+    }
+}
+
+extension Color {
+    init(hex: UInt32, alpha: Double = 1) {
+        self.init(uiColor: UIColor(hex: hex, alpha: alpha))
+    }
+
+    /// Kolor, który sam zmienia się między jasnym a ciemnym motywem.
+    static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
+        Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })
+    }
+}
+
+/// Paleta z zaakceptowanego projektu (jasny / ciemny).
+enum Palette {
+    static let bg = Color.dynamic(0xEDEFF5, 0x0D0F15)
+    static let ink = Color.dynamic(0x14161F, 0xF3F4F8)
+    static let muted = Color.dynamic(0x5E6372, 0x9498A6)
+    static let panel = Color.dynamic(0xFFFFFF, 0x171A23)
+    static let tile = Color.dynamic(0xF2F3F8, 0x212532)
+    static let line = Color.dynamic(0xE3E5EE, 0x2C3140)
+
+    static let nav = Color.dynamic(0x14161F, 0xF3F4F8)
+    static let navOn = Color.dynamic(0xFFFFFF, 0x0D0F15)
+    static let navOff = Color.dynamic(0x868B9A, 0x6B7080)
+    static let navOnBg = Color.dynamic(0x2A2E3B, 0xDDE0EA)
+
+    /// Po terminie.
+    static let alert = Color(hex: 0xF2557A)
+    static let alertInk = Color(hex: 0x8A1230)
+    /// Przycisk „+”.
+    static let accent = Color(hex: 0xFF7A45)
+    static let accentInk = Color(hex: 0x2A1203)
+    static let switchOn = Color(hex: 0x2EC4A0)
+    static let urgentChip = Color(hex: 0x14161F)
+}
+
+/// Polskie nazwy i daty niezależnie od języka telefonu (cała appka jest po polsku).
+enum PL {
+    static let locale = Locale(identifier: "pl_PL")
+    static var calendar: Calendar {
+        var cal = Calendar(identifier: .gregorian)
+        cal.locale = locale
+        cal.firstWeekday = 2
+        return cal
+    }
+
+    static let months = ["Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+                         "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"]
+    static let monthsShort = ["STY", "LUT", "MAR", "KWI", "MAJ", "CZE", "LIP", "SIE", "WRZ", "PAŹ", "LIS", "GRU"]
+    static let weekdays = ["Pn", "Wt", "Śr", "Cz", "Pt", "So", "Nd"]
+
+    static func date(_ date: Date) -> String {
+        date.formatted(.dateTime.day().month(.wide).year().locale(locale))
+    }
+
+    /// „Sobota, 7 listopada”.
+    static func today(_ date: Date = .now) -> String {
+        let text = date.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))
+        return text.prefix(1).uppercased() + text.dropFirst()
+    }
+
+    static func money(_ value: Double) -> String {
+        let rounded = value.rounded()
+        let digits = abs(value - rounded) < 0.005 ? 0 : 2
+        return value.formatted(.number.precision(.fractionLength(digits)).locale(locale)) + " zł"
+    }
+}
+
+// MARK: - Grupy kategorii (kolory kart)
+
+enum CategoryGroup: String, CaseIterable, Identifiable {
+    case auto, home, personal, subscriptions
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .auto: "Auto"
+        case .home: "Dom"
+        case .personal: "Osobiste"
+        case .subscriptions: "Abonamenty"
         }
     }
 
     var color: Color {
         switch self {
-        case .expired: Color(red: 0.90, green: 0.22, blue: 0.23)
-        case .critical: Color(red: 0.96, green: 0.45, blue: 0.10)
-        case .soon: Color(red: 0.93, green: 0.69, blue: 0.05)
-        case .ok: Color(red: 0.17, green: 0.62, blue: 0.33)
+        case .auto: Color(hex: 0xFF7A45)
+        case .home: Color(hex: 0x4BA3FF)
+        case .personal: Color(hex: 0x2EC4A0)
+        case .subscriptions: Color(hex: 0xFFC53D)
         }
     }
 
-    var gradient: LinearGradient {
-        let colors: [Color] = switch self {
-        case .expired: [Color(red: 0.93, green: 0.28, blue: 0.30), Color(red: 0.62, green: 0.08, blue: 0.20)]
-        case .critical: [Color(red: 1.00, green: 0.58, blue: 0.20), Color(red: 0.85, green: 0.27, blue: 0.08)]
-        case .soon: [Color(red: 0.98, green: 0.78, blue: 0.20), Color(red: 0.88, green: 0.50, blue: 0.05)]
-        case .ok: [Color(red: 0.25, green: 0.75, blue: 0.48), Color(red: 0.07, green: 0.45, blue: 0.36)]
+    /// Ciemny kolor tekstu na karcie w kolorze grupy.
+    var ink: Color {
+        switch self {
+        case .auto: Color(hex: 0x2A1203)
+        case .home: Color(hex: 0x04223F)
+        case .personal: Color(hex: 0x03291F)
+        case .subscriptions: Color(hex: 0x2B1F00)
         }
-        return LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    var symbol: String {
+        switch self {
+        case .auto: "car.fill"
+        case .home: "house.fill"
+        case .personal: "person.text.rectangle.fill"
+        case .subscriptions: "arrow.triangle.2.circlepath"
+        }
+    }
+
+    var categories: [DocumentCategory] {
+        DocumentCategory.allCases.filter { $0.group == self }
+    }
+}
+
+extension DocumentCategory {
+    var group: CategoryGroup {
+        switch self {
+        case .carInsurance, .carInspection, .drivingLicense: .auto
+        case .homeInsurance, .other: .home
+        case .passport, .idCard: .personal
+        case .subscription: .subscriptions
+        }
     }
 }
 
 extension Document {
-    var urgency: Urgency { Urgency(daysLeft: daysLeft()) }
+    var group: CategoryGroup { category.group }
 
-    /// Koszt miesięczny subskrypcji (do statystyk na pulpicie).
+    /// Koszt miesięczny subskrypcji (do kafla na pulpicie).
     var monthlyCost: Double {
         guard category == .subscription, let price else { return 0 }
         switch billingCycle ?? .monthly {
@@ -45,32 +153,52 @@ extension Document {
         case .yearly: return price / 12
         }
     }
+
+    /// Druga linijka na karcie: osoba, numer albo cena.
+    var cardSubtitle: String {
+        var parts: [String] = []
+        if category == .subscription, let price {
+            parts.append(PL.money(price) + " / " + (billingCycle ?? .monthly).shortTitle)
+        }
+        if !owner.isEmpty { parts.append(owner) }
+        if !number.isEmpty, parts.count < 2 { parts.append(number) }
+        if parts.isEmpty { parts.append(category.title) }
+        return parts.joined(separator: " · ")
+    }
 }
 
-/// „6 dni”, „jutro”, „2 dni po”, „4 lata”.
+extension BillingCycle {
+    var shortTitle: String {
+        switch self {
+        case .monthly: "mies."
+        case .quarterly: "kw."
+        case .yearly: "rok"
+        }
+    }
+}
+
+// MARK: - Teksty dni
+
+/// „6 dni”, „dziś”, „2 dni po”, „4 lata”.
 enum DaysText {
     static func short(_ days: Int) -> String {
         switch days {
         case ..<0: return "\(-days) \(dni(-days)) po"
         case 0: return "dziś"
         case 1: return "jutro"
-        case 2...365: return "\(days) \(dni(days))"
+        case 2...365: return "\(days) dni"
         default:
             let years = days / 365
             return "\(years) \(lata(years))"
         }
     }
 
-    /// Liczba i jednostka osobno, do dużego licznika.
+    /// Liczba i jednostka osobno, do dużego licznika w pierścieniu.
     static func split(_ days: Int) -> (value: String, unit: String) {
-        switch days {
-        case ..<0: return ("\(-days)", "\(dni(-days)) po terminie")
-        case 0: return ("0", "dni · to dziś")
-        case 1...365: return ("\(days)", dni(days))
-        default:
-            let years = days / 365
-            return ("\(years)", lata(years))
-        }
+        let a = abs(days)
+        if a <= 365 { return ("\(a)", a == 1 ? "DZIEŃ" : "DNI") }
+        let years = a / 365
+        return ("\(years)", lata(years).uppercased())
     }
 
     static func dni(_ n: Int) -> String { n == 1 ? "dzień" : "dni" }
@@ -82,83 +210,44 @@ enum DaysText {
     }
 }
 
-struct DaysLeftBadge: View {
-    let daysLeft: Int
+// MARK: - Małe elementy
+
+/// Plakietka z liczbą dni. Czerwona po terminie, czarna do 7 dni.
+struct DaysChip: View {
+    let days: Int
+    /// Kolor tekstu, gdy plakietka leży na kolorowej karcie. `nil` = na zwykłym panelu.
+    var onCardInk: Color?
+    var size: CGFloat = 11
 
     var body: some View {
-        let color = Urgency(daysLeft: daysLeft).color
-        Text(DaysText.short(daysLeft))
-            .font(.caption.weight(.bold).monospacedDigit())
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
+        Text(DaysText.short(days))
+            .font(.system(size: size, weight: .heavy).monospacedDigit())
+            .lineLimit(1)
+            .padding(.horizontal, size * 0.7)
+            .padding(.vertical, size * 0.3)
+            .background(background, in: Capsule())
+            .foregroundStyle(foreground)
             .contentTransition(.numericText())
     }
-}
 
-/// Wiersz z kolorowym paskiem pilności po lewej i dużą liczbą dni po prawej.
-struct StripeRow: View {
-    let document: Document
-
-    var body: some View {
-        let days = document.daysLeft()
-        let urgency = Urgency(daysLeft: days)
-        let split = DaysText.split(days)
-
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(urgency.color)
-                .frame(width: 5)
-                .padding(.vertical, 2)
-
-            Image(systemName: document.category.symbol)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(width: 34, height: 34)
-                .background(urgency.color.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
-                .foregroundStyle(urgency.color)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(document.displayTitle)
-                    .font(.body.weight(.semibold))
-                    .lineLimit(1)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 8)
-
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(days < 0 ? "−\(split.value)" : split.value)
-                    .font(.title3.weight(.heavy).monospacedDigit())
-                    .contentTransition(.numericText())
-                Text(days < 0 ? "po" : split.unit)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-            .foregroundStyle(urgency.color)
-        }
-        .frame(minHeight: 44)
+    private var background: Color {
+        if days < 0 { return Palette.alert }
+        if days <= 7 { return Palette.urgentChip }
+        return onCardInk == nil ? Palette.tile : Color.black.opacity(0.12)
     }
 
-    private var subtitle: String {
-        var parts: [String] = []
-        if !document.owner.isEmpty { parts.append(document.owner) }
-        parts.append(document.expiryDate.formatted(.dateTime.day().month(.abbreviated).year()))
-        if document.category == .subscription, let price = document.price {
-            parts.append(price.formatted(.currency(code: "PLN").precision(.fractionLength(0...2))))
-        }
-        return parts.joined(separator: " · ")
+    private var foreground: Color {
+        if days <= 7 { return .white }
+        return onCardInk ?? Palette.ink
     }
 }
 
-/// Pierścień postępu: ile z ostatnich 30 dni przed terminem już minęło.
+/// Pierścień: ile z ostatnich 30 dni przed terminem już minęło.
 struct CountdownRing: View {
     let daysLeft: Int
-    var lineWidth: CGFloat = 8
-    @State private var animatedProgress: Double = 0
+    var color: Color
+    var lineWidth: CGFloat = 9
+    @State private var shown: Double = 0
 
     private var progress: Double {
         if daysLeft <= 0 { return 1 }
@@ -167,17 +256,141 @@ struct CountdownRing: View {
 
     var body: some View {
         ZStack {
-            Circle().stroke(.white.opacity(0.25), lineWidth: lineWidth)
+            Circle().stroke(color.opacity(0.18), lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: animatedProgress)
-                .stroke(.white, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .trim(from: 0, to: shown)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
         }
         .onAppear {
-            withAnimation(.spring(duration: 1.2, bounce: 0.3).delay(0.15)) { animatedProgress = progress }
+            withAnimation(.spring(duration: 1.2, bounce: 0.3).delay(0.2)) { shown = progress }
         }
         .onChange(of: daysLeft) {
-            withAnimation(.spring(duration: 0.8)) { animatedProgress = progress }
+            withAnimation(.spring(duration: 0.8, bounce: 0.3)) { shown = progress }
         }
+    }
+}
+
+/// Lekkie „wciśnięcie” przycisków.
+struct PressScaleStyle: ButtonStyle {
+    var scale: CGFloat = 0.95
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.4), value: configuration.isPressed)
+    }
+}
+
+/// Wjazd elementu od dołu przy pierwszym pokazaniu, z opóźnieniem dla efektu kaskady.
+struct RiseIn: ViewModifier {
+    let index: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown || reduceMotion ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 16)
+            .onAppear {
+                withAnimation(.spring(duration: 0.55, bounce: 0.25).delay(Double(index) * 0.06)) { shown = true }
+            }
+    }
+}
+
+extension View {
+    func riseIn(_ index: Int) -> some View { modifier(RiseIn(index: index)) }
+
+    /// Miejsce na pływający pasek, żeby nie zasłaniał ostatnich wierszy.
+    func tabBarClearance() -> some View {
+        contentMargins(.bottom, 110, for: .scrollContent)
+    }
+
+    func screenTitle() -> some View {
+        font(.system(size: 30, weight: .heavy)).tracking(-0.9)
+    }
+}
+
+/// Duży tytuł ekranu po lewej stronie.
+struct ScreenHeader<Trailing: View>: View {
+    let title: String
+    var subtitle: String?
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 0) {
+                if let subtitle {
+                    Text(subtitle).font(.system(size: 13, weight: .semibold)).foregroundStyle(Palette.muted)
+                }
+                Text(title).screenTitle()
+            }
+            Spacer()
+            trailing
+        }
+        .padding(.horizontal, 4)
+    }
+}
+
+extension ScreenHeader where Trailing == EmptyView {
+    init(title: String, subtitle: String? = nil) {
+        self.init(title: title, subtitle: subtitle) { EmptyView() }
+    }
+}
+
+/// Okrągły przycisk w nagłówku.
+struct CircleIconButton: View {
+    let symbol: String
+    let label: String
+    var badge: Int = 0
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Palette.ink)
+                .frame(width: 44, height: 44)
+                .background(Palette.panel, in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    if badge > 0 {
+                        Text("\(badge)")
+                            .font(.system(size: 10, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .frame(minWidth: 16, minHeight: 16)
+                            .background(Palette.alert, in: Capsule())
+                            .offset(x: -4, y: 4)
+                    }
+                }
+        }
+        .buttonStyle(PressScaleStyle())
+        .accessibilityLabel(label)
+    }
+}
+
+/// Pigułka filtra z kolorową kropką i licznikiem.
+struct FilterPill: View {
+    let title: String
+    let dot: Color
+    let count: Int
+    let isOn: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(dot)
+                    .frame(width: 10, height: 10)
+                Text(title).font(.system(size: 14, weight: .bold))
+                Text("\(count)").font(.system(size: 12, weight: .heavy)).opacity(0.6)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 12)
+            .frame(height: 38)
+            .background(isOn ? Palette.ink : Palette.panel, in: Capsule())
+            .foregroundStyle(isOn ? Palette.bg : Palette.ink)
+        }
+        .buttonStyle(PressScaleStyle())
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }

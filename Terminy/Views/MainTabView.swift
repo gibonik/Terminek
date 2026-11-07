@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 enum AppTab: String, CaseIterable, Identifiable {
     case home, documents, calendar, settings
@@ -18,26 +19,78 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .home: "square.grid.2x2.fill"
         case .documents: "doc.text.fill"
         case .calendar: "calendar"
-        case .settings: "gearshape.fill"
+        case .settings: "slider.horizontal.3"
         }
     }
 }
 
-/// Wspólny stan nawigacji: pulpit może przełączyć na listę z gotowym filtrem.
-@Observable
-final class AppRouter {
-    var tab: AppTab = .home
-    var listFilter: ListFilter = .all
-    var newDocumentCategory: DocumentCategory?
-
-    func open(_ filter: ListFilter) {
-        listFilter = filter
-        tab = .documents
-    }
+/// Filtr listy dokumentów (pulpit może przełączyć na listę z gotowym filtrem).
+enum ListFilter: Hashable {
+    case all, urgent, group(CategoryGroup)
 }
 
-enum ListFilter: Hashable {
-    case all, attention, category(DocumentCategory)
+/// Otwarcie edytora: nowy dokument (z kategorią albo od razu ze skanerem) lub edycja.
+struct EditorRequest: Identifiable {
+    let id = UUID()
+    var document: Document?
+    var category: DocumentCategory = .other
+    var startScanning = false
+}
+
+/// Wspólny stan nawigacji i arkuszy dla wszystkich zakładek.
+@MainActor
+@Observable
+final class AppRouter {
+    var tab: AppTab
+    var listFilter: ListFilter = .all
+    var focusSearch = false
+
+    var selected: Document?
+    var showingAdd = false
+    var editor: EditorRequest?
+    /// Edytor czeka, aż zamknie się arkusz „Nowy dokument” (dwa arkusze naraz iOS nie pokaże).
+    var pendingEditor: EditorRequest?
+
+    init() {
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-startTab"), i + 1 < args.count, let tab = AppTab(rawValue: args[i + 1]) {
+            self.tab = tab
+        } else {
+            self.tab = .home
+        }
+    }
+
+    func openList(_ filter: ListFilter, search: Bool = false) {
+        listFilter = filter
+        focusSearch = search
+        withAnimation(.spring(duration: 0.35, bounce: 0.2)) { tab = .documents }
+    }
+
+    func add(_ category: DocumentCategory = .other, scan: Bool = false) {
+        present(EditorRequest(document: nil, category: category, startScanning: scan))
+    }
+
+    func edit(_ document: Document) {
+        present(EditorRequest(document: document, category: document.category))
+    }
+
+    private func present(_ request: EditorRequest) {
+        if showingAdd {
+            pendingEditor = request
+            showingAdd = false
+        } else if selected != nil {
+            pendingEditor = request
+            selected = nil
+        } else {
+            editor = request
+        }
+    }
+
+    func showPendingEditor() {
+        guard let pending = pendingEditor else { return }
+        pendingEditor = nil
+        editor = pending
+    }
 }
 
 struct MainTabView: View {
@@ -53,20 +106,32 @@ struct MainTabView: View {
             }
 
             FloatingTabBar(selection: $router.tab) {
-                router.newDocumentCategory = .other
+                router.showingAdd = true
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 4)
+            .padding(.horizontal, 28)
+            .padding(.bottom, 8)
         }
+        .background(Palette.bg.ignoresSafeArea())
+        .ignoresSafeArea(.keyboard, edges: .bottom)
         .environment(router)
-        .sheet(item: $router.newDocumentCategory) { category in
-            DocumentEditView(document: nil, initialCategory: category)
+        .sheet(item: $router.selected, onDismiss: { router.showPendingEditor() }) { doc in
+            DocumentSheet(document: doc)
+                .environment(router)
+        }
+        .sheet(isPresented: $router.showingAdd, onDismiss: { router.showPendingEditor() }) {
+            AddDocumentSheet()
+                .environment(router)
+        }
+        .sheet(item: $router.editor) { request in
+            DocumentEditView(document: request.document,
+                             initialCategory: request.category,
+                             startScanning: request.startScanning)
         }
         .sensoryFeedback(.selection, trigger: router.tab)
     }
 }
 
-/// Pływający pasek na dole: 4 zakładki + duży przycisk dodawania pośrodku.
+/// Pływający ciemny pasek: 4 zakładki + pomarańczowy plus pośrodku.
 struct FloatingTabBar: View {
     @Binding var selection: AppTab
     var onAdd: () -> Void
@@ -75,18 +140,19 @@ struct FloatingTabBar: View {
     var body: some View {
         HStack(spacing: 0) {
             item(.home)
+            Spacer(minLength: 0)
             item(.documents)
+            Spacer(minLength: 0)
             addButton
+            Spacer(minLength: 0)
             item(.calendar)
+            Spacer(minLength: 0)
             item(.settings)
         }
-        .padding(6)
-        .background {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(Capsule().strokeBorder(.white.opacity(0.15)))
-                .shadow(color: .black.opacity(0.15), radius: 16, y: 6)
-        }
+        .padding(.horizontal, 8)
+        .frame(height: 64)
+        .background(Palette.nav, in: Capsule())
+        .shadow(color: Color(hex: 0x0A0C14).opacity(0.28), radius: 16, y: 8)
     }
 
     private func item(_ tab: AppTab) -> some View {
@@ -94,28 +160,21 @@ struct FloatingTabBar: View {
         return Button {
             withAnimation(.spring(duration: 0.35, bounce: 0.3)) { selection = tab }
         } label: {
-            VStack(spacing: 3) {
-                Image(systemName: tab.symbol)
-                    .font(.system(size: 17, weight: .semibold))
-                    .symbolEffect(.bounce, value: isOn)
-                Text(tab.title)
-                    .font(.system(size: 10, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-            }
-            .foregroundStyle(isOn ? Color.accentColor : .secondary)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background {
-                if isOn {
-                    Capsule()
-                        .fill(Color.accentColor.opacity(0.14))
-                        .matchedGeometryEffect(id: "pill", in: pill)
+            Image(systemName: tab.symbol)
+                .font(.system(size: 19, weight: .bold))
+                .symbolEffect(.bounce, value: isOn)
+                .foregroundStyle(isOn ? Palette.navOn : Palette.navOff)
+                .frame(width: 54, height: 48)
+                .background {
+                    if isOn {
+                        Capsule()
+                            .fill(Palette.navOnBg)
+                            .matchedGeometryEffect(id: "pill", in: pill)
+                    }
                 }
-            }
-            .contentShape(Rectangle())
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressScaleStyle())
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
@@ -123,30 +182,13 @@ struct FloatingTabBar: View {
     private var addButton: some View {
         Button(action: onAdd) {
             Image(systemName: "plus")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
-                .background(Circle().fill(Color.accentColor.gradient))
-                .shadow(color: Color.accentColor.opacity(0.45), radius: 10, y: 4)
+                .font(.system(size: 24, weight: .heavy))
+                .foregroundStyle(Palette.accentInk)
+                .frame(width: 54, height: 54)
+                .background(Palette.accent, in: Circle())
+                .shadow(color: Palette.accent.opacity(0.45), radius: 8, y: 6)
         }
-        .buttonStyle(PressScaleStyle())
-        .padding(.horizontal, 4)
+        .buttonStyle(PressScaleStyle(scale: 0.9))
         .accessibilityLabel("Dodaj dokument")
-    }
-}
-
-/// Lekkie „wciśnięcie” przycisków.
-struct PressScaleStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(duration: 0.25, bounce: 0.4), value: configuration.isPressed)
-    }
-}
-
-extension View {
-    /// Miejsce na pływający pasek, żeby nie zasłaniał ostatnich wierszy.
-    func tabBarClearance() -> some View {
-        contentMargins(.bottom, 96, for: .scrollContent)
     }
 }

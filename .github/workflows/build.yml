@@ -50,6 +50,24 @@ jobs:
           xcrun simctl spawn "$DEST" launchctl list | grep -q "pl.terminy.app" || { echo "::error::Aplikacja padła po starcie"; find ~/Library/Logs/DiagnosticReports -name 'Terminy*' -mmin -5 | head -1 | xargs -I{} head -c 6000 {}; exit 1; }
           echo "Aplikacja działa po 8 s"
 
+      - name: Screenshots (demo data)
+        continue-on-error: true
+        run: |
+          DEST=$(xcrun simctl list devices booted -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for v in d.values() for x in v))")
+          mkdir -p build/shots
+          xcrun simctl status_bar "$DEST" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
+          for look in light dark; do
+            xcrun simctl ui "$DEST" appearance $look
+            for tab in home documents calendar settings; do
+              xcrun simctl terminate "$DEST" pl.terminy.app || true
+              xcrun simctl launch "$DEST" pl.terminy.app -demoData -startTab $tab
+              sleep 5
+              xcrun simctl io "$DEST" screenshot "build/shots/$look-$tab.png"
+            done
+          done
+          xcrun simctl ui "$DEST" appearance light
+          ls -la build/shots
+
       - name: Diagnostic - CloudKit path without entitlement
         continue-on-error: true
         run: |
@@ -74,6 +92,14 @@ jobs:
         with:
           name: Terminy-ipa
           path: build/Terminy.ipa
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: build/shots
+          if-no-files-found: ignore
           retention-days: 14
 
       - uses: actions/upload-artifact@v4

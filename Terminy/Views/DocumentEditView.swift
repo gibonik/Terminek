@@ -4,6 +4,7 @@ import PhotosUI
 
 struct DocumentEditView: View {
     let document: Document?
+    var startScanning = false
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -21,12 +22,14 @@ struct DocumentEditView: View {
     @State private var scanImageData: Data?
 
     @State private var showingScanner = false
+    @State private var autoScanDone = false
     @State private var photoItem: PhotosPickerItem?
     @State private var isReading = false
     @State private var ocrMessage: String?
 
-    init(document: Document?, initialCategory: DocumentCategory = .other) {
+    init(document: Document?, initialCategory: DocumentCategory = .other, startScanning: Bool = false) {
         self.document = document
+        self.startScanning = startScanning
         let cat = document?.category ?? initialCategory
         _category = State(initialValue: cat)
         _title = State(initialValue: document?.title ?? "")
@@ -123,6 +126,14 @@ struct DocumentEditView: View {
                         .lineLimit(3...8)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Palette.bg.ignoresSafeArea())
+            .tint(Palette.accent)
+            .onAppear {
+                guard startScanning, !autoScanDone else { return }
+                autoScanDone = true
+                if DocumentScanner.isSupported { showingScanner = true }
+            }
             .navigationTitle(document == nil ? "Nowy dokument" : "Edycja")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -154,7 +165,7 @@ struct DocumentEditView: View {
 
     private var numberPlaceholder: String {
         switch category {
-        case .carInsurance: "Numer polisy"
+        case .carInsurance, .homeInsurance: "Numer polisy"
         case .carInspection: "Numer rejestracyjny"
         case .passport, .idCard, .drivingLicense: "Numer dokumentu"
         case .subscription: "Konto / e-mail"

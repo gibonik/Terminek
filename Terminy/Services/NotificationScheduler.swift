@@ -11,6 +11,14 @@ final class NotificationScheduler {
 
     nonisolated static let reminderOffsets = [30, 7, 0]
     nonisolated static let reminderHourKey = "reminderHour"
+
+    /// Klucz ustawienia „przypominaj X dni przed”.
+    nonisolated static func offsetKey(_ offset: Int) -> String { "remind\(offset)" }
+
+    /// Odstępy włączone w ustawieniach (domyślnie wszystkie).
+    nonisolated static func enabledOffsets(_ defaults: UserDefaults = .standard) -> [Int] {
+        reminderOffsets.filter { defaults.object(forKey: offsetKey($0)) as? Bool ?? true }
+    }
     private let maxPending = 60
 
     private let center = UNUserNotificationCenter.current()
@@ -31,7 +39,8 @@ final class NotificationScheduler {
 
         center.removeAllPendingNotificationRequests()
 
-        let requests = Self.plannedReminders(for: documents, hour: reminderHour, now: now)
+        let requests = Self.plannedReminders(for: documents, hour: reminderHour, now: now,
+                                             offsets: Self.enabledOffsets())
             .prefix(maxPending)
             .map(makeRequest)
 
@@ -52,11 +61,12 @@ final class NotificationScheduler {
         for documents: [Document],
         hour: Int,
         now: Date,
+        offsets: [Int] = reminderOffsets,
         calendar: Calendar = .current
     ) -> [PlannedReminder] {
         var result: [PlannedReminder] = []
         for doc in documents where doc.remindersEnabled {
-            for offset in reminderOffsets {
+            for offset in offsets {
                 guard
                     let day = calendar.date(byAdding: .day, value: -offset, to: calendar.startOfDay(for: doc.expiryDate)),
                     let fire = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day),

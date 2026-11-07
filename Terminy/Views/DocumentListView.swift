@@ -1,207 +1,213 @@
 import SwiftUI
 import SwiftData
 
+/// Zakładka „Dokumenty”: wyszukiwarka, filtry i wszystkie dokumenty pogrupowane wg pilności.
 struct DocumentListView: View {
+    @Environment(AppRouter.self) private var router
     @Environment(\.modelContext) private var context
     @Query(sort: \Document.expiryDate) private var documents: [Document]
 
-    @State private var categoryFilter: DocumentCategory?
     @State private var searchText = ""
-    @State private var editorTemplate: DocumentCategory?
-    @State private var showingNew = false
-    @State private var showingSettings = false
+    @FocusState private var searchFocused: Bool
+    @State private var toDelete: Document?
+
+    private var filter: ListFilter { router.listFilter }
+
+    private func matches(_ doc: Document, _ filter: ListFilter) -> Bool {
+        switch filter {
+        case .all: true
+        case .urgent: doc.daysLeft() <= 7
+        case .group(let group): doc.group == group
+        }
+    }
 
     private var filtered: [Document] {
         documents.filter { doc in
-            (categoryFilter == nil || doc.category == categoryFilter)
-            && (searchText.isEmpty
-                || doc.displayTitle.localizedCaseInsensitiveContains(searchText)
-                || doc.owner.localizedCaseInsensitiveContains(searchText)
-                || doc.number.localizedCaseInsensitiveContains(searchText))
+            matches(doc, filter)
+                && (searchText.isEmpty
+                    || doc.displayTitle.localizedCaseInsensitiveContains(searchText)
+                    || doc.owner.localizedCaseInsensitiveContains(searchText)
+                    || doc.number.localizedCaseInsensitiveContains(searchText)
+                    || doc.notes.localizedCaseInsensitiveContains(searchText)
+                    || doc.category.title.localizedCaseInsensitiveContains(searchText))
         }
     }
 
-    private var grouped: [ExpiryStatus: [Document]] {
-        Dictionary(grouping: filtered) { $0.status() }
+    private var sections: [(title: String, docs: [Document])] {
+        let docs = filtered
+        return [
+            ("Po terminie", docs.filter { $0.daysLeft() < 0 }),
+            ("Do 30 dni", docs.filter { (0...30).contains($0.daysLeft()) }),
+            ("Później", docs.filter { $0.daysLeft() > 30 }),
+        ].filter { !$0.docs.isEmpty }
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if documents.isEmpty {
-                    emptyState
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                ScreenHeader(title: "Dokumenty", subtitle: "\(documents.count) w sumie").riseIn(0)
+                searchField.riseIn(1)
+                filterRow.riseIn(2)
+
+                if filtered.isEmpty {
+                    emptyState.riseIn(3)
                 } else {
-                    list
-                }
-            }
-            .navigationTitle("Terminy")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showingSettings = true } label: { Image(systemName: "gearshape") }
-                        .accessibilityLabel("Ustawienia")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        ForEach(DocumentCategory.allCases) { category in
-                            Button { newDocument(category) } label: {
-                                Label(category.title, systemImage: category.symbol)
+                    ForEach(Array(sections.enumerated()), id: \.element.title) { index, section in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(section.title.uppercased())
+                                .font(.system(size: 11, weight: .heavy)).tracking(0.6)
+                                .foregroundStyle(section.title == "Po terminie" ? Palette.alert : Palette.muted)
+                                .padding(.horizontal, 6)
+                                .padding(.top, 4)
+                            ForEach(section.docs) { doc in
+                                DocumentRow(document: doc)
+                                    .onTapGesture { router.selected = doc }
+                                    .contextMenu {
+                                        Button { withAnimation { doc.renew() } } label: {
+                                            Label("Odnowione", systemImage: "checkmark")
+                                        }
+                                        Button { router.edit(doc) } label: { Label("Edytuj", systemImage: "pencil") }
+                                        Button(role: .destructive) { toDelete = doc } label: {
+                                            Label("Usuń", systemImage: "trash")
+                                        }
+                                    }
                             }
                         }
-                    } label: {
-                        Image(systemName: "plus")
-                    } primaryAction: {
-                        newDocument(.other)
+                        .riseIn(3 + index)
                     }
-                    .accessibilityLabel("Dodaj dokument")
                 }
             }
-            .sheet(isPresented: $showingNew) {
-                DocumentEditView(document: nil, initialCategory: editorTemplate ?? .other)
-            }
-            .sheet(isPresented: $showingSettings) {
-                SettingsView()
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .animation(.spring(duration: 0.45, bounce: 0.2), value: filtered.map(\.id))
+        }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.immediately)
+        .tabBarClearance()
+        .background(Palette.bg.ignoresSafeArea())
+        .onAppear(perform: applyFocusRequest)
+        .onChange(of: router.focusSearch) { applyFocusRequest() }
+        .confirmationDialog("Usunąć „\(toDelete?.displayTitle ?? "")”?",
+                            isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }),
+                            titleVisibility: .visible) {
+            Button("Usuń", role: .destructive) {
+                if let toDelete { withAnimation { context.delete(toDelete) } }
+                toDelete = nil
             }
         }
     }
 
-    private var list: some View {
-        List {
-            Section {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        FilterChip(title: "Wszystkie", isOn: categoryFilter == nil) { categoryFilter = nil }
-                        ForEach(DocumentCategory.allCases) { category in
-                            FilterChip(title: category.title, isOn: categoryFilter == category) {
-                                categoryFilter = categoryFilter == category ? nil : category
-                            }
-                        }
-                    }
-                }
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                .listRowBackground(Color.clear)
-            }
+    private func applyFocusRequest() {
+        guard router.focusSearch else { return }
+        router.focusSearch = false
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            searchFocused = true
+        }
+    }
 
-            let byStatus = grouped
-            ForEach([ExpiryStatus.expired, .soon, .ok], id: \.self) { status in
-                if let docs = byStatus[status] {
-                    Section(status.sectionTitle) {
-                        ForEach(docs) { doc in
-                            NavigationLink(value: doc) {
-                                DocumentRow(document: doc)
-                            }
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    withAnimation { doc.renew() }
-                                } label: {
-                                    Label("Odnów", systemImage: "arrow.clockwise")
-                                }
-                                .tint(.green)
-                            }
-                        }
-                        .onDelete { offsets in
-                            for index in offsets { context.delete(docs[index]) }
-                        }
-                    }
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Palette.muted)
+            TextField("Szukaj: nazwa, osoba, numer", text: $searchText)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+                .focused($searchFocused)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.muted)
                 }
+                .accessibilityLabel("Wyczyść")
             }
         }
-        .searchable(text: $searchText, prompt: "Szukaj: nazwa, osoba, numer")
-        .navigationDestination(for: Document.self) { DocumentDetailView(document: $0) }
+        .padding(.horizontal, 14)
+        .frame(height: 46)
+        .background(Palette.panel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private var filterRow: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                pill("Wszystko", dot: filter == .all ? Palette.bg : Palette.ink, .all)
+                pill("Pilne", dot: Palette.alert, .urgent)
+                ForEach(CategoryGroup.allCases) { group in
+                    pill(group.title, dot: group.color, .group(group))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 2)
+        }
+        .scrollIndicators(.hidden)
+        .padding(.horizontal, -16)
+        .sensoryFeedback(.selection, trigger: filter)
+    }
+
+    private func pill(_ title: String, dot: Color, _ value: ListFilter) -> some View {
+        FilterPill(title: title, dot: dot,
+                   count: documents.filter { matches($0, value) }.count,
+                   isOn: filter == value) {
+            withAnimation(.spring(duration: 0.4, bounce: 0.2)) { router.listFilter = value }
+        }
     }
 
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("Brak dokumentów", systemImage: "doc.badge.clock")
-        } description: {
-            Text("Dodaj OC, przegląd, paszport albo subskrypcję. Przypomnimy 30 i 7 dni przed terminem.")
-        } actions: {
-            Button("Dodaj ubezpieczenie OC") { newDocument(.carInsurance) }
-                .buttonStyle(.borderedProminent)
-            Button("Dodaj inny dokument") { newDocument(.other) }
+        VStack(spacing: 12) {
+            Image(systemName: documents.isEmpty ? "doc.badge.plus" : "magnifyingglass")
+                .font(.system(size: 34, weight: .bold))
+                .foregroundStyle(Palette.muted)
+            Text(documents.isEmpty ? "Nie masz jeszcze dokumentów" : "Nic nie pasuje")
+                .font(.system(size: 17, weight: .heavy))
+                .foregroundStyle(Palette.ink)
+            if documents.isEmpty {
+                Button { router.showingAdd = true } label: {
+                    Text("Dodaj dokument")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(Palette.accentInk)
+                        .padding(.horizontal, 20)
+                        .frame(height: 46)
+                        .background(Palette.accent, in: Capsule())
+                }
+                .buttonStyle(PressScaleStyle())
+            }
         }
-    }
-
-    private func newDocument(_ category: DocumentCategory) {
-        editorTemplate = category
-        showingNew = true
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 36)
+        .background(Palette.panel, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
 
+/// Wiersz listy: kolorowy kwadrat z ikoną, nazwa, podpis i plakietka dni.
 struct DocumentRow: View {
     let document: Document
 
     var body: some View {
+        let group = document.group
         HStack(spacing: 12) {
             Image(systemName: document.category.symbol)
-                .font(.title3)
-                .frame(width: 36, height: 36)
-                .background(.tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                .foregroundStyle(.tint)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(group.ink)
+                .frame(width: 42, height: 42)
+                .background(group.color, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(document.displayTitle).font(.body.weight(.medium))
-                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(document.displayTitle)
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundStyle(Palette.ink)
+                    .lineLimit(1)
+                Text(group.title + " · " + document.cardSubtitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Palette.muted)
+                    .lineLimit(1)
             }
-
-            Spacer()
-
-            DaysLeftBadge(daysLeft: document.daysLeft())
+            Spacer(minLength: 8)
+            DaysChip(days: document.daysLeft(), size: 12)
         }
-        .padding(.vertical, 2)
-    }
-
-    private var subtitle: String {
-        var parts: [String] = []
-        if !document.owner.isEmpty { parts.append(document.owner) }
-        parts.append(document.expiryDate.formatted(date: .abbreviated, time: .omitted))
-        return parts.joined(separator: " · ")
-    }
-}
-
-struct DaysLeftBadge: View {
-    let daysLeft: Int
-
-    var body: some View {
-        Text(label)
-            .font(.caption.weight(.semibold).monospacedDigit())
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(color.opacity(0.15), in: Capsule())
-            .foregroundStyle(color)
-    }
-
-    private var label: String {
-        switch daysLeft {
-        case ..<0: "\(-daysLeft) dni po"
-        case 0: "dziś"
-        case 1: "jutro"
-        default: "\(daysLeft) dni"
-        }
-    }
-
-    private var color: Color {
-        switch ExpiryStatus(daysLeft: daysLeft) {
-        case .expired: .red
-        case .soon: daysLeft <= 7 ? .orange : .yellow
-        case .ok: .green
-        }
-    }
-}
-
-struct FilterChip: View {
-    let title: String
-    let isOn: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(isOn ? Color.accentColor : Color(.secondarySystemFill), in: Capsule())
-                .foregroundStyle(isOn ? .white : .primary)
-        }
-        .buttonStyle(.plain)
+        .padding(12)
+        .background(Palette.panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }

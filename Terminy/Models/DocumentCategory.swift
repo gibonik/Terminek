@@ -8,6 +8,7 @@ enum DocumentCategory: String, CaseIterable, Identifiable, Codable {
     case passport
     case idCard
     case drivingLicense
+    case homeInsurance
     case subscription
     case other
 
@@ -20,6 +21,7 @@ enum DocumentCategory: String, CaseIterable, Identifiable, Codable {
         case .passport: "Paszport"
         case .idCard: "Dowód osobisty"
         case .drivingLicense: "Prawo jazdy"
+        case .homeInsurance: "Ubezpieczenie mieszkania"
         case .subscription: "Subskrypcja"
         case .other: "Inne"
         }
@@ -32,6 +34,7 @@ enum DocumentCategory: String, CaseIterable, Identifiable, Codable {
         case .passport: "globe.europe.africa"
         case .idCard: "person.text.rectangle"
         case .drivingLicense: "steeringwheel"
+        case .homeInsurance: "house"
         case .subscription: "arrow.triangle.2.circlepath"
         case .other: "doc.text"
         }
@@ -40,7 +43,7 @@ enum DocumentCategory: String, CaseIterable, Identifiable, Codable {
     /// Typowy okres ważności po odnowieniu, używany przez przycisk „Odnów”.
     var defaultRenewal: DateComponents {
         switch self {
-        case .carInsurance, .carInspection: DateComponents(year: 1)
+        case .carInsurance, .carInspection, .homeInsurance: DateComponents(year: 1)
         case .passport, .idCard: DateComponents(year: 10)
         case .drivingLicense: DateComponents(year: 15)
         case .subscription: DateComponents(month: 1)

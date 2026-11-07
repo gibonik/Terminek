@@ -30,7 +30,8 @@ final class AppLock {
     }
 
     init() {
-        let enabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
+        let demo = ProcessInfo.processInfo.arguments.contains("-demoData")
+        let enabled = demo ? false : (UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true)
         isEnabled = enabled
         isUnlocked = !enabled
     }

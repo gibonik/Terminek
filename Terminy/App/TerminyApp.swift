@@ -4,6 +4,10 @@ import SwiftData
 @main
 struct TerminyApp: App {
     static let cloudKitContainerID = "iCloud.pl.terminy.app"
+    /// Czy baza faktycznie działa na iCloud (ustawiane przy starcie).
+    static var usesCloudKit = false
+    /// Tryb pokazowy z przykładowymi danymi (zrzuty ekranu w CI): `-demoData`.
+    static let isDemo = ProcessInfo.processInfo.arguments.contains("-demoData")
 
     let container: ModelContainer
     @State private var lock = AppLock()
@@ -51,6 +55,12 @@ struct TerminyApp: App {
         let schema = Schema([Document.self])
         let isRunningTests = ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
 
+        if isDemo {
+            let container = try! ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+            DemoData.insert(into: container.mainContext)
+            return container
+        }
+
         if isRunningTests {
             return try! ModelContainer(for: schema, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         }
@@ -61,6 +71,7 @@ struct TerminyApp: App {
                 cloudKitDatabase: .private(cloudKitContainerID)
             )
             if let container = try? ModelContainer(for: schema, configurations: cloud) {
+                usesCloudKit = true
                 return container
             }
         }
