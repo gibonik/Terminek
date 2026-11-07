@@ -148,7 +148,7 @@ final class NotificationScheduler {
     ) -> [PlannedReminder] {
         var result: [PlannedReminder] = []
         for doc in documents where doc.remindersEnabled {
-            for offset in offsets {
+            for offset in doc.customOffsets ?? offsets {
                 guard
                     let day = calendar.date(byAdding: .day, value: -offset, to: calendar.startOfDay(for: doc.expiryDate)),
                     let fire = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day),
@@ -178,7 +178,7 @@ final class NotificationScheduler {
         case 7:
             return "Zostało 7 dni\(who). Termin: \(date)."
         default:
-            return "Zostało \(offset) dni\(who). Termin: \(date)."
+            return "Zostało \(offset) \(DaysText.dni(offset))\(who). Termin: \(date)."
         }
     }
 

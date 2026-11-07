@@ -27,6 +27,8 @@ struct PaywallView: View {
         ("rectangle.stack.badge.plus", "Dokumenty bez limitu", "Cała rodzina, wszystkie auta i subskrypcje"),
         ("doc.on.doc", "Skany wielostronicowe", "Cała polisa w jednym PDF-ie, do wysłania jednym ruchem"),
         ("sparkles", "Asystent bez limitu", "Pytaj o terminy, ile chcesz"),
+        ("bell.badge", "Własne przypomnienia", "Np. 60, 14 i 3 dni przed, osobno dla każdego dokumentu"),
+        ("calendar.badge.plus", "Terminy w Kalendarzu", "Dodasz termin do Kalendarza iPhone'a z alarmem"),
         ("icloud", "Kopia w iCloud", "Te same dokumenty na każdym Twoim iPhonie"),
     ]
 

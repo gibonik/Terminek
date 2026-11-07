@@ -3,7 +3,7 @@ import StoreKit
 
 /// Dlaczego pokazujemy ekran Plus (zmienia nagłówek).
 enum PaywallReason: String, Identifiable {
-    case documents, scanPages, assistant, manual
+    case documents, scanPages, assistant, reminders, calendar, manual
     var id: String { rawValue }
 
     var headline: String {
@@ -11,6 +11,8 @@ enum PaywallReason: String, Identifiable {
         case .documents: "Masz już \(Store.freeDocuments) dokumentów. Z Plus dodasz ich, ile chcesz."
         case .scanPages: "Skany z wieloma stronami i PDF są w Plus."
         case .assistant: "Dziś wykorzystałeś \(Store.freeAssistantPerDay) darmowe pytania. Z Plus pytasz bez limitu."
+        case .reminders: "Własne terminy przypomnień dla każdego dokumentu są w Plus."
+        case .calendar: "Dodawanie terminów do Kalendarza jest w Plus."
         case .manual: "Wszystkie dokumenty rodziny pod kontrolą, bez limitów."
         }
     }

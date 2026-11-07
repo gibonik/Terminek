@@ -66,6 +66,23 @@ final class NotificationPlanTests: XCTestCase {
         XCTAssertEqual(plan.map(\.identifier), ["\(soon.id.uuidString)-7", "\(soon.id.uuidString)-0"])
     }
 
+    func testCustomOffsetsPerDocument() {
+        let cal = Calendar.current
+        let now = DateComponents(calendar: cal, year: 2026, month: 11, day: 6, hour: 12).date!
+        let expiry = DateComponents(calendar: cal, year: 2027, month: 3, day: 31).date!
+        let doc = Document(title: "OC", category: .carInsurance, expiryDate: expiry)
+        doc.customOffsets = [60, 3, 3]
+        XCTAssertEqual(doc.customOffsetsRaw, "60,3")
+
+        let plan = NotificationScheduler.plannedReminders(for: [doc], hour: 9, now: now, offsets: [30, 7, 0])
+        let days = plan.map { cal.dateComponents([.day], from: cal.startOfDay(for: $0.fireDate), to: expiry).day! }
+        XCTAssertEqual(days, [60, 3])
+        XCTAssertTrue(plan[1].body.hasPrefix("Zostało 3 dni"), plan[1].body)
+
+        doc.customOffsets = nil
+        XCTAssertEqual(NotificationScheduler.plannedReminders(for: [doc], hour: 9, now: now, offsets: [30, 7, 0]).count, 3)
+    }
+
     func testRespectsChosenOffsets() {
         let cal = Calendar.current
         let now = DateComponents(calendar: cal, year: 2026, month: 11, day: 6, hour: 12).date!

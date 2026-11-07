@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
 import PDFKit
+import EventKit
+import EventKitUI
 
 /// Dokument na pełnym ekranie: tło w kolorach karty, karta przechylająca się z telefonem,
 /// odliczanie, okrągłe akcje i szczegóły.
@@ -17,6 +19,9 @@ struct CardDetailView: View {
     @State private var flip: Double = 0
     @State private var bursts = 0
     @State private var drag: CGFloat = 0
+    @State private var editingOffsets = false
+    @State private var addingToCalendar = false
+    @State private var paywall: PaywallReason?
 
     var body: some View {
         let days = document.daysLeft()
@@ -103,6 +108,17 @@ struct CardDetailView: View {
         } message: {
             Text("Dokument i jego przypomnienia znikną.")
         }
+        .sheet(isPresented: $editingOffsets, onDismiss: reschedule) {
+            ReminderOffsetsSheet(document: document)
+        }
+        .sheet(isPresented: $addingToCalendar) {
+            CalendarEventSheet(document: document) { saved in
+                addingToCalendar = false
+                if saved { router.show("Dodano do Kalendarza", symbol: "calendar.badge.checkmark") }
+            }
+            .ignoresSafeArea()
+        }
+        .sheet(item: $paywall) { PaywallView(reason: $0) }
         .fullScreenCover(isPresented: $showingScan) {
             ScanViewer(pdf: document.scanPDFData, image: document.scanImageData, title: document.displayTitle)
         }
@@ -190,7 +206,19 @@ struct CardDetailView: View {
             for: [document], hour: reminderHour, now: .now, offsets: NotificationScheduler.enabledOffsets()
         )
         return VStack(alignment: .leading, spacing: DT.Space.sm) {
-            Text("PRZYPOMNIENIA").font(DT.Typography.overline).kerning(DT.Size.hairline).foregroundStyle(DT.Palette.textSecondary)
+            HStack {
+                Text("PRZYPOMNIENIA").font(DT.Typography.overline).kerning(DT.Size.hairline).foregroundStyle(DT.Palette.textSecondary)
+                if document.customOffsets != nil {
+                    Text("WŁASNE").font(DT.Typography.overline).foregroundStyle(DT.Palette.accentText)
+                }
+                Spacer()
+                Button("Zmień") {
+                    if Store.shared.isPlus { editingOffsets = true } else { paywall = .reminders }
+                }
+                .font(DT.Typography.subheadlineEmphasized)
+                .foregroundStyle(DT.Palette.accentText)
+                .frame(minHeight: DT.Size.touch)
+            }
             if !document.remindersEnabled {
                 Text("Wyciszone dla tego dokumentu.")
                     .font(DT.Typography.subheadline)
@@ -218,11 +246,30 @@ struct CardDetailView: View {
                     }
                 }
             }
+            Button {
+                if Store.shared.isPlus { addingToCalendar = true } else { paywall = .calendar }
+            } label: {
+                Label("Dodaj do Kalendarza", systemImage: "calendar.badge.plus")
+                    .font(DT.Typography.subheadlineEmphasized)
+                    .foregroundStyle(DT.Palette.accentText)
+                    .frame(maxWidth: .infinity, minHeight: DT.Size.touch)
+                    .background(DT.Palette.surfaceRaised, in: Capsule())
+            }
+            .buttonStyle(CardPressStyle())
+            .padding(.top, DT.Space.xxs)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DT.Space.md)
         .panel()
         .animation(DT.Motion.standard, value: document.remindersEnabled)
+    }
+
+    private func reschedule() {
+        let context = self.context
+        Task {
+            let all = (try? context.fetch(FetchDescriptor<Document>())) ?? []
+            await NotificationScheduler.shared.reschedule(all)
+        }
     }
 
     private var divider: some View {
@@ -370,4 +417,111 @@ struct PDFPages: UIViewRepresentable {
     }
 
     func updateUIView(_ view: PDFView, context: Context) {}
+}
+
+/// Wybór własnych terminów przypomnień dla jednego dokumentu.
+struct ReminderOffsetsSheet: View {
+    @Bindable var document: Document
+    @Environment(\.dismiss) private var dismiss
+    @State private var selected: Set<Int> = []
+
+    static let options = [90, 60, 30, 14, 7, 3, 1, 0]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DT.Space.lg) {
+            HStack {
+                Text("Kiedy przypominać?").font(DT.Typography.title3)
+                Spacer()
+                RoundIconButton(symbol: "xmark", label: "Zamknij") { dismiss() }
+            }
+            Text("Wybierz dowolne dni przed terminem „\(document.displayTitle)”. Przypomnienie przyjdzie o godzinie z ustawień.")
+                .font(DT.Typography.subheadline)
+                .foregroundStyle(DT.Palette.textSecondary)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: DT.Size.tile), spacing: DT.Space.xs)], spacing: DT.Space.xs) {
+                ForEach(Self.options, id: \.self) { days in
+                    let isOn = selected.contains(days)
+                    Button {
+                        withAnimation(DT.Motion.press) {
+                            if isOn { selected.remove(days) } else { selected.insert(days) }
+                        }
+                    } label: {
+                        Text(label(days))
+                            .font(DT.Typography.subheadlineEmphasized)
+                            .foregroundStyle(isOn ? DT.Palette.onAccent : DT.Palette.textPrimary)
+                            .frame(maxWidth: .infinity, minHeight: DT.Size.pill)
+                            .background(isOn ? DT.Palette.accent : DT.Palette.surfaceRaised, in: Capsule())
+                    }
+                    .buttonStyle(CardPressStyle())
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                }
+            }
+            Spacer()
+            PrimaryButton(title: "Zapisz", symbol: "checkmark") {
+                document.customOffsets = selected.isEmpty ? nil : Array(selected)
+                dismiss()
+            }
+            .disabled(selected.isEmpty)
+            .opacity(selected.isEmpty ? 0.5 : 1)
+            Button("Jak w ustawieniach") {
+                document.customOffsets = nil
+                dismiss()
+            }
+            .font(DT.Typography.subheadlineEmphasized)
+            .foregroundStyle(DT.Palette.accentText)
+            .frame(maxWidth: .infinity, minHeight: DT.Size.touch)
+        }
+        .padding(DT.Space.gutter)
+        .background(AppBackground())
+        .foregroundStyle(DT.Palette.textPrimary)
+        .presentationDetents([.medium, .large])
+        .onAppear {
+            selected = Set(document.customOffsets ?? NotificationScheduler.enabledOffsets())
+        }
+    }
+
+    private func label(_ days: Int) -> String {
+        switch days {
+        case 0: "W dniu"
+        case 1: "Dzień przed"
+        default: "\(days) dni"
+        }
+    }
+}
+
+/// Systemowy formularz nowego wydarzenia w Kalendarzu, wypełniony terminem dokumentu.
+/// Nie wymaga zgody na dostęp do kalendarza: użytkownik sam zatwierdza dodanie.
+struct CalendarEventSheet: UIViewControllerRepresentable {
+    let document: Document
+    let onFinish: (Bool) -> Void
+
+    func makeUIViewController(context: Context) -> EKEventEditViewController {
+        let store = EKEventStore()
+        let event = EKEvent(eventStore: store)
+        let isSub = document.category == .subscription
+        event.title = (isSub ? "Płatność: " : "Koniec ważności: ") + document.displayTitle
+        event.isAllDay = true
+        event.startDate = Calendar.current.startOfDay(for: document.expiryDate)
+        event.endDate = event.startDate
+        event.notes = "Dodane z aplikacji Terminek."
+        // Alarmy: tydzień wcześniej i rano w dniu terminu (wydarzenie całodniowe zaczyna się o północy).
+        event.alarms = [EKAlarm(relativeOffset: -7 * 24 * 3600 + 9 * 3600), EKAlarm(relativeOffset: 9 * 3600)]
+        let controller = EKEventEditViewController()
+        controller.eventStore = store
+        controller.event = event
+        controller.editViewDelegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: EKEventEditViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
+
+    final class Coordinator: NSObject, EKEventEditViewDelegate {
+        let onFinish: (Bool) -> Void
+        init(onFinish: @escaping (Bool) -> Void) { self.onFinish = onFinish }
+
+        func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
+            onFinish(action == .saved)
+        }
+    }
 }
