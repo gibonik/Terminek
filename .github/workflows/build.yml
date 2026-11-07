@@ -90,6 +90,21 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -n 30
           mkdir -p build/Payload
           cp -R build/Terminy.xcarchive/Products/Applications/Terminy.app build/Payload/
+          # Podpis „ad hoc” z samą grupą aplikacji: Sideloadly/AltStore widzą wtedy, że widżet
+          # i aplikacja dzielą dane, i mogą tę grupę zarejestrować na darmowym Apple ID.
+          cat > build/sideload.entitlements <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>com.apple.security.application-groups</key><array><string>group.pl.terminy.app</string></array>
+          </dict></plist>
+          PLIST
+          sed -i '' 's/^          //' build/sideload.entitlements
+          for ext in build/Payload/Terminy.app/PlugIns/*.appex; do
+            [ -d "$ext" ] && codesign --force --sign - --entitlements build/sideload.entitlements "$ext"
+          done
+          codesign --force --sign - --entitlements build/sideload.entitlements build/Payload/Terminy.app
+          ls build/Payload/Terminy.app/PlugIns || echo "Brak rozszerzeń"
           (cd build && zip -qr Terminy.ipa Payload)
 
       - uses: actions/upload-artifact@v4

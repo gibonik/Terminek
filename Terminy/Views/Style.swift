@@ -77,6 +77,11 @@ enum PL {
     }
 }
 
+extension String {
+    /// „za 6 dni” → „Za 6 dni”.
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
+}
+
 // MARK: - Grupy kategorii
 
 enum CategoryGroup: String, CaseIterable, Identifiable {

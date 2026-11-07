@@ -16,8 +16,12 @@ targets:
     platform: iOS
     sources:
       - Terminy
+      - Shared
       - path: docs/legal
         buildPhase: resources
+    dependencies:
+      - target: TerminyWidget
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: pl.terminy.app
@@ -35,6 +39,32 @@ targets:
       path: Terminy/Resources/Info.plist
       properties:
         UIBackgroundModes: [remote-notification]
+        CFBundleURLTypes:
+          - CFBundleURLName: pl.terminy.app
+            CFBundleURLSchemes: [terminek]
+  TerminyWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - TerminyWidget
+      - Shared
+      - Terminy/Models
+      - Terminy/Views/DesignTokens.swift
+      - Terminy/Views/Style.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pl.terminy.app.widget
+        CODE_SIGN_ENTITLEMENTS: TerminyWidget/TerminyWidget.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Terminek
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
+        SKIP_INSTALL: YES
+    info:
+      path: TerminyWidget/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
   TerminyTests:
     type: bundle.unit-test
     platform: iOS
@@ -50,6 +80,29 @@ schemes:
     build:
       targets:
         Terminy: all
-        TerminyTests: [test]
+        TerminyWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - TerminyWidget
+      - Shared
+      - Terminy/Models
+      - Terminy/Views/DesignTokens.swift
+      - Terminy/Views/Style.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: pl.terminy.app.widget
+        CODE_SIGN_ENTITLEMENTS: TerminyWidget/TerminyWidget.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Terminek
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
+        SKIP_INSTALL: YES
+    info:
+      path: TerminyWidget/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+  TerminyTests: [test]
     test:
       targets: [TerminyTests]

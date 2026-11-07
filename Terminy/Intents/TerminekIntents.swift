@@ -158,43 +158,6 @@ struct OpenDocumentIntent: OpenIntent {
     }
 }
 
-/// Dodawanie, skanowanie, asystent i zgłoszenie błędu: otwierają aplikację w odpowiednim miejscu.
-struct AddDocumentIntent: AppIntent {
-    static let title: LocalizedStringResource = "Dodaj dokument"
-    static let description = IntentDescription("Otwiera Terminka na dodawaniu nowego dokumentu.")
-    static let openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        DeepLink.shared.action = .add
-        return .result()
-    }
-}
-
-struct ScanDocumentIntent: AppIntent {
-    static let title: LocalizedStringResource = "Zeskanuj dokument"
-    static let description = IntentDescription("Otwiera skaner, który odczyta datę ważności.")
-    static let openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        DeepLink.shared.action = .scan
-        return .result()
-    }
-}
-
-struct OpenAssistantIntent: AppIntent {
-    static let title: LocalizedStringResource = "Otwórz asystenta"
-    static let description = IntentDescription("Otwiera czat z asystentem terminów.")
-    static let openAppWhenRun = true
-
-    @MainActor
-    func perform() async throws -> some IntentResult {
-        DeepLink.shared.action = .assistant
-        return .result()
-    }
-}
-
 // MARK: - Podpowiedzi Siri
 
 /// Gotowe skróty: widać je w aplikacji Skróty i w Spotlight bez żadnej konfiguracji.

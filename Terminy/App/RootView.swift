@@ -53,7 +53,9 @@ struct RootView: View {
             }
         }
         // Każda zmiana (także ta, która przyszła z iCloud z innego urządzenia) przelicza przypomnienia.
-        .onChange(of: reminderSignature) {
+        .onChange(of: reminderSignature, initial: true) { old, new in
+            WidgetSync.update(documents)
+            guard old != new else { return }
             Task { await NotificationScheduler.shared.reschedule(documents) }
         }
     }

@@ -130,7 +130,9 @@ enum ScanStore {
         let fm = FileManager.default
         let tmp = fm.temporaryDirectory
         let files = (try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)) ?? []
-        for file in files where file.pathExtension.lowercased() == "pdf" { try? fm.removeItem(at: file) }
+        for file in files where ["pdf", Backup.fileExtension].contains(file.pathExtension.lowercased()) {
+            try? fm.removeItem(at: file)
+        }
         BugReport.cleanUpSharedFiles()
     }
 

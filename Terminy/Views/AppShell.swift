@@ -297,6 +297,17 @@ struct MainTabView: View {
             handle(action)
         }
         .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in router.reportFromShake() }
+        // Stuknięcie w widżet: terminek://document/<id>, terminek://scan, terminek://add.
+        .onOpenURL { url in
+            guard url.scheme == "terminek" else { return }
+            switch url.host() {
+            case "document":
+                if let id = UUID(uuidString: url.lastPathComponent) { DeepLink.shared.documentID = id }
+            case "scan": DeepLink.shared.action = .scan
+            case "add": DeepLink.shared.action = .add
+            default: break
+            }
+        }
         .task {
             try? await Task.sleep(for: .seconds(1.5))
             router.offerCrashReport()

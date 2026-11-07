@@ -50,3 +50,56 @@ final class SupportTests: XCTestCase {
         XCTAssertTrue(found.contains { $0.id == doc.id })
     }
 }
+
+@MainActor
+final class BackupTests: XCTestCase {
+    func testRoundTripWithScanAndWrongPassword() throws {
+        let doc = Document(title: "OC Passat", category: .carInsurance, owner: "PZU", number: "WX 12345")
+        doc.scanPDFData = Data([1, 2, 3, 4])
+        doc.scanPageCount = 1
+        doc.customOffsets = [60, 7]
+        let file = try Backup.export([doc], password: "sekret1")
+
+        // Plik nie zawiera danych jawnym tekstem.
+        XCTAssertNil(file.range(of: Data("WX 12345".utf8)))
+        XCTAssertThrowsError(try Backup.read(file, password: "zle-haslo"))
+        XCTAssertThrowsError(try Backup.read(Data("cos innego".utf8), password: "sekret1"))
+
+        let payload = try Backup.read(file, password: "sekret1")
+        XCTAssertEqual(payload.documents.count, 1)
+        let item = try XCTUnwrap(payload.documents.first)
+        XCTAssertEqual(item.id, doc.id)
+        XCTAssertEqual(item.number, "WX 12345")
+        XCTAssertEqual(item.scanPDFData, Data([1, 2, 3, 4]))
+        XCTAssertEqual(item.customOffsetsRaw, "60,7")
+    }
+
+    func testRestoreAddsAndReplaces() throws {
+        let container = try ModelContainer(for: Document.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = container.mainContext
+        let existing = Document(title: "Stary", category: .passport)
+        context.insert(existing)
+        let changed = Document(title: "Nowy tytuł", category: .passport)
+        changed.id = existing.id
+        let fresh = Document(title: "Netflix", category: .subscription)
+        let payload = try Backup.read(try Backup.export([changed, fresh], password: "haslo123"), password: "haslo123")
+
+        let result = try Backup.restore(payload, into: context)
+        XCTAssertEqual(result, Backup.ImportResult(added: 1, updated: 1))
+        let all = try context.fetch(FetchDescriptor<Document>())
+        XCTAssertEqual(all.count, 2)
+        XCTAssertTrue(all.contains { $0.title == "Nowy tytuł" })
+    }
+}
+
+final class WidgetSnapshotTests: XCTestCase {
+    func testExpiredFirstThenSoonest() {
+        let cal = Calendar.current
+        let now = cal.date(from: DateComponents(year: 2026, month: 11, day: 7, hour: 12))!
+        func item(_ title: String, _ days: Int) -> WidgetSnapshot.Item {
+            WidgetSnapshot.Item(id: UUID(), title: title, categoryRaw: "other", expiryDate: cal.date(byAdding: .day, value: days, to: now)!)
+        }
+        let snapshot = WidgetSnapshot(items: [item("za rok", 365), item("wczoraj", -1), item("jutro", 1), item("dziś", 0)], updated: now)
+        XCTAssertEqual(snapshot.upcoming(now: now).map(\.title), ["wczoraj", "dziś", "jutro", "za rok"])
+    }
+}

@@ -36,11 +36,6 @@ struct DocumentEntity: AppEntity, Identifiable {
     }
 }
 
-extension String {
-    /// „za 6 dni” → „Za 6 dni”.
-    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
-}
-
 /// Wyszukiwanie dokumentów dla Siri i Skrótów (po nazwie, rodzaju i właścicielu).
 struct DocumentQuery: EntityStringQuery {
     @MainActor

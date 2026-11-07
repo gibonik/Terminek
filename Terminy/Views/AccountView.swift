@@ -19,6 +19,8 @@ struct AccountView: View {
     @AppStorage(Haptics.enabledKey) private var haptics = true
     @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system.rawValue
     @AppStorage(AppRouter.shakeKey) private var shakeToReport = true
+    @State private var backup: BackupSheet.Mode?
+    @State private var importing = false
     @State private var status: UNAuthorizationStatus = .notDetermined
     @State private var testSent = 0
     @State private var paywall: PaywallReason?
@@ -116,6 +118,52 @@ struct AccountView: View {
                     }
                     .padding(.horizontal, DT.Space.md)
                     .frame(minHeight: DT.Size.toggleRow)
+                }
+
+                group("Kopia zapasowa", index: 5) {
+                    Button { backup = .export } label: {
+                        HStack(spacing: DT.Space.sm) {
+                            icon("lock.doc")
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text("Zapisz kopię").font(DT.Typography.body).foregroundStyle(DT.Palette.textPrimary)
+                                Text(lastBackupText)
+                                    .font(DT.Typography.footnote)
+                                    .foregroundStyle(backupIsStale ? DT.Palette.warning : DT.Palette.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(DT.Typography.footnoteEmphasized).foregroundStyle(DT.Palette.textTertiary)
+                        }
+                        .padding(.horizontal, DT.Space.md)
+                        .padding(.vertical, DT.Space.xs)
+                        .frame(minHeight: DT.Size.toggleRow)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(documents.isEmpty)
+                    divider
+                    Button { importing = true } label: {
+                        row("arrow.down.doc", "Wczytaj kopię", chevron: true)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .sheet(item: $backup) { mode in
+                    BackupSheet(mode: mode) { result in
+                        router.show("Wczytano: nowe \(result.added), zastąpione \(result.updated)", symbol: "arrow.down.doc.fill")
+                    }
+                }
+                .fileImporter(isPresented: $importing, allowedContentTypes: [.data, .item]) { result in
+                    switch result {
+                    case .success(let url):
+                        let access = url.startAccessingSecurityScopedResource()
+                        defer { if access { url.stopAccessingSecurityScopedResource() } }
+                        if let data = try? Data(contentsOf: url) {
+                            backup = .restore(data)
+                        } else {
+                            router.show("Nie udało się otworzyć pliku.", symbol: "xmark.octagon.fill")
+                        }
+                    case .failure:
+                        break
+                    }
                 }
 
                 group("Siri i skróty", index: 5) {
@@ -429,6 +477,20 @@ struct AccountView: View {
             .background(DT.Palette.accent.opacity(0.14), in: Circle())
     }
 
+    private var lastBackup: Date? { UserDefaults.standard.object(forKey: BackupSheet.lastBackupKey) as? Date }
+
+    /// Bez iCloud kopia to jedyne zabezpieczenie danych, więc przypominamy o niej po miesiącu.
+    private var backupIsStale: Bool {
+        guard !TerminyApp.usesCloudKit, !documents.isEmpty else { return false }
+        guard let lastBackup else { return true }
+        return Date.now.timeIntervalSince(lastBackup) > 30 * 24 * 3600
+    }
+
+    private var lastBackupText: String {
+        guard let lastBackup else { return TerminyApp.usesCloudKit ? "Dane są też w iCloud" : "Jeszcze nie zapisano kopii" }
+        return "Ostatnia: \(PL.date(lastBackup))"
+    }
+
     private func row(_ symbol: String, _ title: String, chevron: Bool = false) -> some View {
         HStack(spacing: DT.Space.sm) {
             icon(symbol)
@@ -545,6 +607,20 @@ struct ShortcutsHelpSheet: View {
                 SiriTipView(intent: NextDeadlineIntent())
                     .siriTipViewStyle(.automatic)
 
+                VStack(alignment: .leading, spacing: DT.Space.sm) {
+                    Text("PRZYCISK CZYNNOŚCI I CENTRUM STEROWANIA")
+                        .font(DT.Typography.overline)
+                        .kerning(DT.Size.hairline)
+                        .foregroundStyle(DT.Palette.textSecondary)
+                    tip("1.circle.fill", "Ustawienia › Przycisk czynności › Skrót › Terminek › Najbliższy termin. Jedno naciśnięcie i słyszysz, co się kończy.")
+                    tip("2.circle.fill", "Na iOS 18 możesz też wybrać sterowanie „Skanuj dokument” albo „Dodaj dokument” (Przycisk czynności › Sterowanie).")
+                    tip("3.circle.fill", "Te same przyciski dodasz w Centrum sterowania: przytrzymaj puste miejsce › Dodaj sterowanie › Terminek.")
+                    tip("4.circle.fill", "Widżet „Najbliższy termin” dodasz na ekran główny i ekran blokady.")
+                }
+                .padding(DT.Space.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .panel()
+
                 Text("Skróty, które czytają dokumenty, działają tylko na odblokowanym iPhonie. Numery dokumentów i skany nie trafiają do Siri.")
                     .font(DT.Typography.footnote)
                     .foregroundStyle(DT.Palette.textTertiary)
@@ -554,5 +630,16 @@ struct ShortcutsHelpSheet: View {
         .background(AppBackground())
         .foregroundStyle(DT.Palette.textPrimary)
         .presentationDetents([.large])
+    }
+
+    private func tip(_ symbol: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: DT.Space.sm) {
+            Image(systemName: symbol)
+                .font(DT.Typography.headline)
+                .foregroundStyle(DT.Palette.accentText)
+            Text(text)
+                .font(DT.Typography.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
