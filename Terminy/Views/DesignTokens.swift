@@ -84,6 +84,8 @@ enum DesignTokens {
         static let lockBadge: CGFloat = 96
         static let lockHalo: CGFloat = 128
         static let scanPreview: CGFloat = 184
+        /// Miniatura strony skanu w formularzu (proporcje A4).
+        static let scanPage = CGSize(width: 130, height: 184)
         static let tile: CGFloat = 96
         static let hairline: CGFloat = 1
     }

@@ -27,6 +27,7 @@ struct RootView: View {
             case .background:
                 lock.lock()
                 Haptics.shared.stop()
+                ScanStore.protectScanFiles()
                 cameFromBackground = true
             case .active:
                 let shouldPrompt = cameFromBackground

@@ -63,6 +63,13 @@ enum PL {
         months[calendar.component(.month, from: date) - 1]
     }
 
+    /// „1 strona”, „3 strony”, „5 stron”.
+    static func pages(_ n: Int) -> String {
+        let ones = n % 10, tens = n % 100
+        let word = n == 1 ? "strona" : (2...4).contains(ones) && !(12...14).contains(tens) ? "strony" : "stron"
+        return "\(n) \(word)"
+    }
+
     static func money(_ value: Double) -> String {
         let rounded = value.rounded()
         let digits = abs(value - rounded) < 0.005 ? 0 : 2

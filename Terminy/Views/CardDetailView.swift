@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PDFKit
 
 /// Dokument na pełnym ekranie: tło w kolorach karty, karta przechylająca się z telefonem,
 /// odliczanie, okrągłe akcje i szczegóły.
@@ -63,7 +64,8 @@ struct CardDetailView: View {
                                 .frame(maxWidth: .infinity)
                                 .clipShape(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous))
                                 .overlay(alignment: .bottomLeading) {
-                                    Label("Skan", systemImage: "doc.viewfinder")
+                                    Label(document.scanPageCount > 1 ? "Skan · \(PL.pages(document.scanPageCount))" : "Skan",
+                                          systemImage: "doc.viewfinder")
                                         .font(DT.Typography.footnoteEmphasized)
                                         .foregroundStyle(DT.Palette.onScrim)
                                         .padding(.horizontal, DT.Space.sm)
@@ -102,7 +104,7 @@ struct CardDetailView: View {
             Text("Dokument i jego przypomnienia znikną.")
         }
         .fullScreenCover(isPresented: $showingScan) {
-            ScanViewer(data: document.scanImageData)
+            ScanViewer(pdf: document.scanPDFData, image: document.scanImageData, title: document.displayTitle)
         }
         .sheet(item: Binding(get: { router.opened == nil ? nil : router.editor }, set: { router.editor = $0 })) { request in
             DocumentEditView(request: request)
@@ -294,17 +296,23 @@ struct TiltCard: ViewModifier {
     }
 }
 
-/// Skan na pełnym ekranie z przybliżaniem.
+/// Skan na pełnym ekranie: wszystkie strony z PDF-a (przewijanie i przybliżanie),
+/// a dla starszych dokumentów samo zdjęcie. Można go udostępnić jako PDF.
 struct ScanViewer: View {
-    let data: Data?
+    let pdf: Data?
+    let image: Data?
+    let title: String
     @Environment(\.dismiss) private var dismiss
     @State private var scale: CGFloat = 1
+    @State private var shareFile: URL?
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .top) {
             DT.Palette.scrim.ignoresSafeArea()
-            if let data, let image = UIImage(data: data) {
-                Image(uiImage: image)
+            if let pdf, ScanStore.pageCount(of: pdf) > 0 {
+                PDFPages(data: pdf).ignoresSafeArea(edges: .bottom)
+            } else if let image, let uiImage = UIImage(data: image) {
+                Image(uiImage: uiImage)
                     .resizable()
                     .scaledToFit()
                     .scaleEffect(scale)
@@ -312,8 +320,54 @@ struct ScanViewer: View {
                         .onEnded { _ in withAnimation(.spring) { scale = 1 } })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            RoundIconButton(symbol: "xmark", label: "Zamknij") { dismiss() }
-                .padding(DT.Space.gutter)
+            HStack {
+                if let file = shareFile {
+                    ShareLink(item: file) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(DT.Typography.headline)
+                            .foregroundStyle(DT.Palette.onScrim)
+                            .frame(width: DT.Size.touch, height: DT.Size.touch)
+                            .background(DT.Palette.scrim.opacity(0.55), in: Circle())
+                    }
+                    .accessibilityLabel("Udostępnij skan jako PDF")
+                }
+                Spacer()
+                RoundIconButton(symbol: "xmark", label: "Zamknij") { dismiss() }
+            }
+            .padding(.horizontal, DT.Space.gutter)
+            .padding(.top, DT.Space.xs)
+        }
+        .task { shareFile = makeShareFile() }
+    }
+
+    /// PDF do udostępnienia zapisany tymczasowo pod czytelną nazwą.
+    private func makeShareFile() -> URL? {
+        guard let pdf else { return nil }
+        let name = title.replacingOccurrences(of: "/", with: "-")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(name).pdf")
+        do {
+            try pdf.write(to: url, options: [.atomic, .completeFileProtection])
+            return url
+        } catch {
+            return nil
         }
     }
+}
+
+/// Strony PDF-a jedna pod drugą, z przybliżaniem.
+struct PDFPages: UIViewRepresentable {
+    let data: Data
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        view.displayDirection = .vertical
+        view.backgroundColor = .clear
+        view.pageShadowsEnabled = false
+        view.document = PDFDocument(data: data)
+        return view
+    }
+
+    func updateUIView(_ view: PDFView, context: Context) {}
 }

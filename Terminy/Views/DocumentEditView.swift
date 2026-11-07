@@ -20,7 +20,13 @@ struct DocumentEditView: View {
     @State private var remindersEnabled: Bool
     @State private var priceText: String
     @State private var billingCycle: BillingCycle
-    @State private var scanImageData: Data?
+    /// Strony skanu w tej edycji. Przy edycji istniejącego dokumentu wczytywane z PDF-a.
+    @State private var scanPages: [UIImage] = []
+    @State private var scanChanged = false
+    @State private var appendingScan = false
+    @State private var scanIssues: [ScanStore.Issue] = []
+    /// Co wpisał skan; pole jest podświetlone, dopóki ktoś go nie zmieni.
+    @State private var scanned: [Field: String] = [:]
 
     @State private var showingScanner = false
     @State private var showingCalendar = false
@@ -46,7 +52,6 @@ struct DocumentEditView: View {
         _remindersEnabled = State(initialValue: doc?.remindersEnabled ?? true)
         _priceText = State(initialValue: doc?.price.map { $0.formatted(.number.locale(PL.locale)) } ?? "")
         _billingCycle = State(initialValue: doc?.billingCycle ?? .monthly)
-        _scanImageData = State(initialValue: doc?.scanImageData)
     }
 
     var body: some View {
@@ -82,15 +87,16 @@ struct DocumentEditView: View {
         .onAppear {
             if startScanning && DocumentScanner.isSupported { showingScanner = true }
         }
+        .task { loadExistingScan() }
     }
 
     private var hasChanges: Bool {
         guard category != nil else { return false }
         if let document {
             return title != document.title || owner != document.owner || number != document.number
-                || notes != document.notes || expiryDate != document.expiryDate
+                || notes != document.notes || expiryDate != document.expiryDate || scanChanged
         }
-        return !title.isEmpty || !owner.isEmpty || !number.isEmpty || !notes.isEmpty || scanImageData != nil
+        return !title.isEmpty || !owner.isEmpty || !number.isEmpty || !notes.isEmpty || !scanPages.isEmpty
     }
 
     private var preview: CardData {
@@ -248,7 +254,7 @@ struct DocumentEditView: View {
             if isReading {
                 HStack(spacing: DT.Space.sm) {
                     ProgressView().tint(DT.Palette.accent)
-                    Text("Odczytuję datę ze skanu…").font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+                    Text("Odczytuję skan…").font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
                 }
             } else if let ocrMessage {
                 Label(ocrMessage, systemImage: ocrFound ? "text.viewfinder" : "exclamationmark.triangle")
@@ -285,41 +291,45 @@ struct DocumentEditView: View {
     }
 
     private var scanSection: some View {
-        VStack(spacing: DT.Space.sm) {
-            if let data = scanImageData, let image = UIImage(data: data) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: DT.Size.scanPreview)
-                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
-                    .frame(maxWidth: .infinity)
-                    .overlay(alignment: .topTrailing) {
-                        Button {
-                            withAnimation { scanImageData = nil; ocrMessage = nil }
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(DT.Typography.footnoteEmphasized)
-                                .foregroundStyle(DT.Palette.onScrim)
-                                .frame(width: DT.Space.xl, height: DT.Space.xl)
-                                .background(DT.Palette.scrim.opacity(0.55), in: Circle())
+        VStack(alignment: .leading, spacing: DT.Space.sm) {
+            if !scanPages.isEmpty {
+                HStack {
+                    Text("Skan").font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+                    Spacer()
+                    Text(PL.pages(scanPages.count))
+                        .font(DT.Typography.footnoteEmphasized)
+                        .foregroundStyle(DT.Palette.textSecondary)
+                        .contentTransition(.numericText())
+                }
+                ScrollView(.horizontal) {
+                    HStack(spacing: DT.Space.sm) {
+                        ForEach(Array(scanPages.enumerated()), id: \.offset) { index, page in
+                            pageThumb(page, index: index)
+                                .transition(.scale.combined(with: .opacity))
                         }
-                        .frame(width: DT.Size.touch, height: DT.Size.touch)
-                        .accessibilityLabel("Usuń skan")
                     }
+                }
+                .scrollIndicators(.hidden)
+
+                ForEach(scanIssues, id: \.self) { issue in
+                    Label(issue.message, systemImage: "exclamationmark.triangle")
+                        .font(DT.Typography.footnote)
+                        .foregroundStyle(DT.Palette.warning)
+                }
             }
             if DocumentScanner.isSupported {
-                Button { showingScanner = true } label: {
-                    Label(scanImageData == nil ? "Zeskanuj dokument" : "Zeskanuj ponownie", systemImage: "doc.viewfinder")
-                        .font(DT.Typography.headline)
-                        .foregroundStyle(DT.Palette.accentText)
-                        .frame(maxWidth: .infinity, minHeight: DT.Size.field)
-                }
-                .buttonStyle(CardPressStyle())
-                if scanImageData == nil {
-                    Text("Ze skanu odczytam datę ważności. Zdjęcie zostaje na telefonie.")
+                if scanPages.isEmpty {
+                    scanButton("Zeskanuj dokument", symbol: "doc.viewfinder", append: false)
+                    Text("Ze skanu odczytam datę, numer i nazwisko. Zdjęcia zostają na telefonie.")
                         .font(DT.Typography.footnote)
                         .foregroundStyle(DT.Palette.textSecondary)
                         .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    HStack(spacing: DT.Space.xs) {
+                        scanButton("Dodaj stronę", symbol: "plus.viewfinder", append: true)
+                        scanButton("Od nowa", symbol: "arrow.counterclockwise", append: false)
+                    }
                 }
             }
         }
@@ -327,10 +337,70 @@ struct DocumentEditView: View {
         .panel()
     }
 
+    private func scanButton(_ title: String, symbol: String, append: Bool) -> some View {
+        Button {
+            appendingScan = append
+            showingScanner = true
+        } label: {
+            Label(title, systemImage: symbol)
+                .font(DT.Typography.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(DT.Palette.accentText)
+                .frame(maxWidth: .infinity, minHeight: DT.Size.field)
+                .background(DT.Palette.surfaceRaised, in: Capsule())
+        }
+        .buttonStyle(CardPressStyle())
+    }
+
+    private func pageThumb(_ page: UIImage, index: Int) -> some View {
+        Image(uiImage: page)
+            .resizable()
+            .scaledToFill()
+            .frame(width: DT.Size.scanPage.width, height: DT.Size.scanPage.height)
+            .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
+            .overlay(alignment: .bottomLeading) {
+                Text("\(index + 1)")
+                    .font(DT.Typography.footnoteEmphasized)
+                    .foregroundStyle(DT.Palette.onScrim)
+                    .frame(minWidth: DT.Size.pill / 1.5, minHeight: DT.Size.pill / 1.5)
+                    .background(DT.Palette.scrim.opacity(0.55), in: Capsule())
+                    .padding(DT.Space.xs)
+            }
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    withAnimation(.snappy) {
+                        scanPages.remove(at: index)
+                        scanChanged = true
+                        if scanPages.isEmpty { scanIssues = []; ocrMessage = nil }
+                    }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(DT.Typography.footnoteEmphasized)
+                        .foregroundStyle(DT.Palette.onScrim)
+                        .frame(width: DT.Space.xl, height: DT.Space.xl)
+                        .background(DT.Palette.scrim.opacity(0.55), in: Circle())
+                }
+                .frame(width: DT.Size.touch, height: DT.Size.touch)
+                .accessibilityLabel("Usuń stronę \(index + 1)")
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Strona \(index + 1)")
+    }
+
     private func field(_ label: String, text: Binding<String>, prompt: String, focus field: Field,
                        characters: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: DT.Space.xxs) {
-            Text(label).font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+        let fromScan = scanned[field].map { !$0.isEmpty && $0 == text.wrappedValue } ?? false
+        return VStack(alignment: .leading, spacing: DT.Space.xxs) {
+            HStack(spacing: DT.Space.xxs) {
+                Text(label).font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+                if fromScan {
+                    Label("ze skanu", systemImage: "text.viewfinder")
+                        .font(DT.Typography.caption)
+                        .foregroundStyle(DT.Palette.accentText)
+                        .transition(.opacity)
+                }
+            }
             TextField("", text: text, prompt: Text(prompt).foregroundStyle(DT.Palette.textTertiary))
                 .font(DT.Typography.headline)
                 .textInputAutocapitalization(characters ? .characters : .sentences)
@@ -344,9 +414,10 @@ struct DocumentEditView: View {
         .panel()
         .overlay {
             RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous)
-                .strokeBorder(DT.Palette.accent.opacity(focus == field ? 0.7 : 0), lineWidth: DT.Size.hairline * 2)
+                .strokeBorder(DT.Palette.accent.opacity(focus == field ? 0.7 : fromScan ? 0.35 : 0), lineWidth: DT.Size.hairline * 2)
         }
         .animation(.snappy, value: focus)
+        .animation(.snappy, value: fromScan)
         .contentShape(Rectangle())
         .onTapGesture { focus = field }
     }
@@ -372,45 +443,78 @@ struct DocumentEditView: View {
         Double(text.replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: " ", with: ""))
     }
 
+    private func loadExistingScan() {
+        guard let document, scanPages.isEmpty, !scanChanged else { return }
+        let pages = ScanStore.images(from: document.scanPDFData)
+        if !pages.isEmpty {
+            scanPages = pages
+        } else if let data = document.scanImageData, let image = UIImage(data: data) {
+            scanPages = [image]
+        }
+    }
+
     private func handle(images: [UIImage]) async {
-        guard let first = images.first else { return }
-        withAnimation { scanImageData = first.downscaled(maxDimension: 1600).jpegData(compressionQuality: 0.6) }
+        guard !images.isEmpty else { return }
+        let appending = appendingScan
+        appendingScan = false
+        let prepared = images.map { $0.downscaled(maxDimension: ScanStore.pageDimension) }
+        withAnimation(.snappy) {
+            scanPages = appending ? scanPages + prepared : prepared
+            scanChanged = true
+        }
+        let found = Set(prepared.flatMap(ScanStore.issues(in:)))
+        scanIssues = [ScanStore.Issue.blurry, .dark].filter(found.contains)
 
         withAnimation { isReading = true }
         defer { withAnimation { isReading = false } }
 
         var text = ""
-        for image in images {
+        for image in prepared {
             if let pageText = try? await TextRecognizer.recognizeText(in: image) {
                 text += pageText + "\n"
             }
         }
 
+        let result = ScanAnalyzer().analyze(text, knownCategory: category)
+        var read: [String] = []
         withAnimation(.spring(duration: 0.45, bounce: 0.2)) {
             if category == nil {
-                category = Self.guessCategory(in: text) ?? .other
+                category = result.category ?? .other
             }
-            if let date = DateExtractor().bestExpiryDate(in: text) {
+            if let date = result.expiry {
                 expiryDate = date
-                ocrFound = true
-                ocrMessage = "Odczytano \(PL.date(date)). Sprawdź, czy się zgadza."
+                read.append(PL.date(date))
+            }
+            if title.isEmpty, let value = result.title { title = value; scanned[.title] = value }
+            if owner.isEmpty, let value = result.owner {
+                owner = value; scanned[.owner] = value
+                read.append(category == .carInsurance || category == .homeInsurance ? "ubezpieczyciela" : "imię i nazwisko")
+            }
+            if number.isEmpty, let value = result.number {
+                number = value; scanned[.number] = value
+                read.append("numer")
+            }
+            ocrFound = result.expiry != nil
+            if read.isEmpty {
+                ocrMessage = "Nie udało się nic odczytać. Uzupełnij ręcznie."
+            } else if result.expiry == nil {
+                ocrMessage = "Odczytano \(Self.list(read)), ale nie datę. Ustaw ją ręcznie."
             } else {
-                ocrFound = false
-                ocrMessage = "Nie udało się odczytać daty. Ustaw ją ręcznie."
+                ocrMessage = "Odczytano \(Self.list(read)). Sprawdź, czy się zgadza."
             }
         }
+        if !read.isEmpty { Haptics.shared.fire(.stamp) }
+    }
+
+    /// „a, b i c”.
+    static func list(_ items: [String]) -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " i " + items[items.count - 1]
     }
 
     /// Prosta podpowiedź rodzaju na podstawie tekstu ze skanu.
     static func guessCategory(in text: String) -> DocumentCategory? {
-        let t = text.uppercased()
-        if t.contains("PASZPORT") || t.contains("PASSPORT") { return .passport }
-        if t.contains("DOWÓD OSOBISTY") || t.contains("DOWOD OSOBISTY") || t.contains("IDENTITY CARD") { return .idCard }
-        if t.contains("PRAWO JAZDY") || t.contains("DRIVING LICENCE") { return .drivingLicense }
-        if t.contains("BADANIE TECHNICZNE") || t.contains("PRZEGLĄD") || t.contains("STACJA KONTROLI") { return .carInspection }
-        if t.contains("ODPOWIEDZIALNOŚCI CYWILNEJ") || t.contains(" OC ") || t.contains("POJAZD") { return .carInsurance }
-        if t.contains("MIESZKANI") || t.contains("NIERUCHOMOŚ") || t.contains("DOMU") { return .homeInsurance }
-        return nil
+        ScanAnalyzer.guessCategory(in: text)
     }
 
     private func save() {
@@ -424,7 +528,11 @@ struct DocumentEditView: View {
         target.expiryDate = expiryDate
         target.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         target.remindersEnabled = remindersEnabled
-        target.scanImageData = scanImageData
+        if scanChanged {
+            target.scanPDFData = ScanStore.makePDF(from: scanPages)
+            target.scanImageData = scanPages.first.flatMap(ScanStore.thumbnail(of:))
+            target.scanPageCount = scanPages.count
+        }
         if category == .subscription {
             target.price = Self.parsePrice(priceText)
             target.billingCycle = billingCycle

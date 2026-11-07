@@ -24,7 +24,11 @@ final class Document {
     var price: Double?
     var billingCycleRaw: String?
 
+    /// Miniatura pierwszej strony skanu (lista, karta, podgląd).
     @Attribute(.externalStorage) var scanImageData: Data?
+    /// Wszystkie strony skanu w jednym PDF-ie.
+    @Attribute(.externalStorage) var scanPDFData: Data?
+    var scanPageCount: Int = 0
 
     init(
         title: String = "",

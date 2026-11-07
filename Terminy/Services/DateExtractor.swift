@@ -10,7 +10,8 @@ import Foundation
 struct DateExtractor {
     static let keywords = [
         "ważn", "wazn", "ważny do", "termin", "do dnia", "koniec", "okres ubezpieczenia",
-        "expiry", "expiration", "valid until", "valid to", "date of expiry", "odnowienie", "renews"
+        "expiry", "expiration", "valid until", "valid to", "date of expiry", "odnowienie", "renews",
+        "następne badanie", "nastepne badanie", "następnego badania", "data następnego"
     ]
 
     var calendar: Calendar = {
