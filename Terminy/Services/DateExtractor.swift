@@ -26,9 +26,13 @@ struct DateExtractor {
     }
 
     func bestExpiryDate(in text: String, now: Date = .now) -> Date? {
-        candidates(in: text, now: now)
-            .max { a, b in a.score == b.score ? a.date < b.date : a.score < b.score }?
-            .date
+        guard let best = candidates(in: text, now: now)
+            .max(by: { a, b in a.score == b.score ? a.date < b.date : a.score < b.score })
+        else { return nil }
+        // Data z przeszłości bez słowa „ważny do” obok to prawie zawsze data wydania albo urodzenia.
+        // Lepiej nic nie wpisać (zostaje domyślna data) niż oznaczyć ważny dokument jako nieważny.
+        if best.date < calendar.startOfDay(for: now) && best.score < 10 { return nil }
+        return best.date
     }
 
     func candidates(in text: String, now: Date = .now) -> [Candidate] {
@@ -59,8 +63,8 @@ struct DateExtractor {
     private static let patterns: [(regex: NSRegularExpression, order: (Int, Int, Int))] = {
         // order = indeksy grup (dzień, miesiąc, rok)
         let defs: [(String, (Int, Int, Int))] = [
-            (#"(?<!\d)(\d{4})[-./](\d{1,2})[-./](\d{1,2})(?!\d)"#, (3, 2, 1)),
-            (#"(?<!\d)(\d{1,2})[-./](\d{1,2})[-./](\d{4})(?!\d)"#, (1, 2, 3)),
+            (#"(?<!\d)(\d{4}) ?[-./,] ?(\d{1,2}) ?[-./,] ?(\d{1,2})(?!\d)"#, (3, 2, 1)),
+            (#"(?<!\d)(\d{1,2}) ?[-./,] ?(\d{1,2}) ?[-./,] ?(\d{4})(?!\d)"#, (1, 2, 3)),
             (#"(?<!\d)(\d{2}) (\d{2}) (\d{4})(?!\d)"#, (1, 2, 3)),
         ]
         return defs.compactMap { pattern, order in
@@ -68,7 +72,27 @@ struct DateExtractor {
         }
     }()
 
-    func dates(in line: String) -> [Date] {
+    /// Skróty miesięcy po polsku i angielsku („12 MAR 2029”, „12 LIS/NOV 2029”).
+    private static let monthNames: [(String, Int)] = [
+        ("sty", 1), ("jan", 1), ("lut", 2), ("feb", 2), ("mar", 3), ("kwi", 4), ("apr", 4),
+        ("maj", 5), ("may", 5), ("cze", 6), ("jun", 6), ("lip", 7), ("jul", 7), ("sie", 8), ("aug", 8),
+        ("wrz", 9), ("sep", 9), ("pa[zź]", 10), ("oct", 10), ("lis", 11), ("nov", 11), ("gru", 12), ("dec", 12),
+    ]
+
+    /// Poprawia typowe błędy OCR w datach i zamienia nazwy miesięcy na liczby.
+    static func normalize(_ line: String) -> String {
+        var text = line
+        // „2O29” → „2029”: litera O między cyframi albo przy kropce daty.
+        text = text.replacingOccurrences(of: #"(?<=[0-9])[Oo](?=[0-9.])|(?<=[0-9.])[Oo](?=[0-9])"#, with: "0", options: .regularExpression)
+        for (name, number) in monthNames {
+            let pattern = #"(?i)(?<!\d)(\d{1,2})[ .-]*"# + name + #"[a-ząćęłńóśźż]*\.?(?:/[a-z]+\.?)?[ .-]*(\d{4})(?!\d)"#
+            text = text.replacingOccurrences(of: pattern, with: "$1.\(number).$2", options: .regularExpression)
+        }
+        return text
+    }
+
+    func dates(in rawLine: String) -> [Date] {
+        let line = Self.normalize(rawLine)
         let ns = line as NSString
         var found: [(location: Int, date: Date)] = []
         var taken: [NSRange] = []

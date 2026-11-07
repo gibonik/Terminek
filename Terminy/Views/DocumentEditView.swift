@@ -499,6 +499,9 @@ struct DocumentEditView: View {
                 ocrMessage = "Nie udało się nic odczytać. Uzupełnij ręcznie."
             } else if result.expiry == nil {
                 ocrMessage = "Odczytano \(Self.list(read)), ale nie datę. Ustaw ją ręcznie."
+            } else if let date = result.expiry, date < Calendar.current.startOfDay(for: .now) {
+                ocrFound = false
+                ocrMessage = "Odczytana data \(PL.date(date)) już minęła. Jeśli dokument jest ważny, popraw ją."
             } else {
                 ocrMessage = "Odczytano \(Self.list(read)). Sprawdź, czy się zgadza."
             }

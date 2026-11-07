@@ -56,7 +56,8 @@ struct ScanAnalyzer {
 
         // 2. Data ważności z tekstu, gdy MRZ jej nie dała.
         if result.expiry == nil {
-            result.expiry = drivingLicenseExpiry(in: text) ?? DateExtractor(calendar: calendar).bestExpiryDate(in: text, now: now)
+            let licence = category == .drivingLicense ? drivingLicenseExpiry(in: text) : nil
+            result.expiry = licence ?? DateExtractor(calendar: calendar).bestExpiryDate(in: text, now: now)
         }
 
         // 3. Numer i reszta zależnie od rodzaju.

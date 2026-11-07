@@ -113,6 +113,20 @@ final class ScanAnalyzerTests: XCTestCase {
         XCTAssertNil(result.number)
     }
 
+    func testIgnoresLonePastDate() {
+        // Data wydania odczytana, a data ważności w nieczytelnym miejscu: nie oznaczamy jako nieważny.
+        let text = "Data wydania 03.02.2019\nNumer 12345"
+        XCTAssertNil(DateExtractor().bestExpiryDate(in: text, now: now))
+    }
+
+    func testReadsMonthNamesSpacedAndOCRNoise() {
+        let e = DateExtractor()
+        XCTAssertEqual(ymd(e.bestExpiryDate(in: "Data ważności / Date of expiry\n12 MAR/MAR 2029", now: now)), "2029-03-12")
+        XCTAssertEqual(ymd(e.bestExpiryDate(in: "ważny do 14. 03. 2029 r.", now: now)), "2029-03-14")
+        XCTAssertEqual(ymd(e.bestExpiryDate(in: "ważny do 14.03.2O29", now: now)), "2029-03-14")
+        XCTAssertEqual(ymd(e.bestExpiryDate(in: "Expiry 05 LIS/NOV 2029", now: now)), "2029-11-05")
+    }
+
     func testPolishPagePlurals() {
         XCTAssertEqual(PL.pages(1), "1 strona")
         XCTAssertEqual(PL.pages(3), "3 strony")
