@@ -70,7 +70,7 @@ struct DocumentEditView: View {
                                         removal: .move(edge: .leading).combined(with: .opacity)))
             }
         }
-        .foregroundStyle(W.cream)
+        .foregroundStyle(DT.Palette.textPrimary)
         .presentationCornerRadius(34)
         .interactiveDismissDisabled(hasChanges)
         .fullScreenCover(isPresented: $showingScanner) {
@@ -105,54 +105,54 @@ struct DocumentEditView: View {
         VStack(spacing: 0) {
             HStack {
                 Button("Anuluj") { dismiss() }
-                    .font(.brico(16, .bold))
-                    .foregroundStyle(W.muted)
-                    .frame(minHeight: 44)
+                    .font(DT.Typography.headline)
+                    .foregroundStyle(DT.Palette.textSecondary)
+                    .frame(minHeight: DT.Size.touch)
                 Spacer()
                 Text(document == nil ? "Nowy dokument" : "Edycja")
-                    .font(.brico(17, .bold))
+                    .font(DT.Typography.headline)
                 Spacer()
                 if document == nil {
                     Button("Rodzaj") { withAnimation(.spring(duration: 0.4)) { self.category = nil } }
-                        .font(.brico(16, .bold))
-                        .foregroundStyle(W.muted)
-                        .frame(minHeight: 44)
+                        .font(DT.Typography.headline)
+                        .foregroundStyle(DT.Palette.textSecondary)
+                        .frame(minHeight: DT.Size.touch)
                 } else {
-                    Color.clear.frame(width: 60, height: 44)
+                    Color.clear.frame(width: DT.Size.touch + DT.Space.md, height: DT.Size.touch)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
+            .padding(.horizontal, DT.Space.gutter)
+            .padding(.top, DT.Space.md)
 
             ScrollView {
-                VStack(spacing: 14) {
+                VStack(spacing: DT.Space.md) {
                     DocCard(data: preview, tilt: false)
                         .scaleEffect(inserting ? 0.86 : 1)
-                        .offset(y: inserting ? 700 : 0)
+                        .offset(y: inserting ? DT.Size.cardHeight * 3 : 0)
                         .rotationEffect(.degrees(inserting ? 4 : 0))
                         .animation(.spring(duration: 0.45, bounce: 0.25), value: preview)
-                        .padding(.bottom, 4)
+                        .padding(.bottom, DT.Space.xxs)
 
                     field("Nazwa", text: $title, prompt: category.titlePlaceholder, focus: .title)
 
                     dateSection(category)
 
                     if category == .subscription {
-                        VStack(spacing: 10) {
-                            HStack(spacing: 10) {
-                                Text("Cena").font(.subheadline).foregroundStyle(W.muted)
-                                TextField("", text: $priceText, prompt: Text("0").foregroundStyle(W.faint))
+                        VStack(spacing: DT.Space.sm) {
+                            HStack(spacing: DT.Space.sm) {
+                                Text("Cena").font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+                                TextField("", text: $priceText, prompt: Text("0").foregroundStyle(DT.Palette.textTertiary))
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
-                                    .font(.brico(18, .bold))
+                                    .font(DT.Typography.headline)
                                     .focused($focus, equals: .price)
-                                Text("zł").foregroundStyle(W.muted)
+                                Text("zł").foregroundStyle(DT.Palette.textSecondary)
                             }
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 54)
-                            .walletPanel(radius: 16)
+                            .padding(.horizontal, DT.Space.md)
+                            .frame(minHeight: DT.Size.row)
+                            .walletPanel()
 
-                            HStack(spacing: 8) {
+                            HStack(spacing: DT.Space.xs) {
                                 ForEach(BillingCycle.allCases) { cycle in
                                     pill(cycle.title, isOn: billingCycle == cycle) { billingCycle = cycle }
                                 }
@@ -165,31 +165,31 @@ struct DocumentEditView: View {
 
                     scanSection
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Notatki").font(.subheadline).foregroundStyle(W.muted)
-                        TextField("", text: $notes, prompt: Text("Np. gdzie leży oryginał").foregroundStyle(W.faint), axis: .vertical)
+                    VStack(alignment: .leading, spacing: DT.Space.xs) {
+                        Text("Notatki").font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+                        TextField("", text: $notes, prompt: Text("Np. gdzie leży oryginał").foregroundStyle(DT.Palette.textTertiary), axis: .vertical)
                             .lineLimit(2...6)
-                            .font(.body)
+                            .font(DT.Typography.body)
                             .focused($focus, equals: .notes)
                     }
-                    .padding(16)
-                    .walletPanel(radius: 16)
+                    .padding(DT.Space.md)
+                    .walletPanel()
 
                     Toggle(isOn: $remindersEnabled) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Przypomnienia").font(.brico(16, .bold))
+                        VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                            Text("Przypomnienia").font(DT.Typography.headline)
                             Text(remindersEnabled ? "Przypomnę \(reminderSummary)." : "Wyłączone dla tego dokumentu.")
-                                .font(.footnote)
-                                .foregroundStyle(W.muted)
+                                .font(DT.Typography.footnote)
+                                .foregroundStyle(DT.Palette.textSecondary)
                         }
                     }
-                    .tint(W.gold)
-                    .padding(16)
-                    .walletPanel(radius: 16)
+                    .tint(DT.Palette.accent)
+                    .padding(DT.Space.md)
+                    .walletPanel()
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 10)
-                .padding(.bottom, 110)
+                .padding(.horizontal, DT.Space.gutter)
+                .padding(.top, DT.Space.sm)
+                .padding(.bottom, DT.Space.xxl)
             }
             .scrollIndicators(.hidden)
             .scrollDismissesKeyboard(.interactively)
@@ -197,39 +197,39 @@ struct DocumentEditView: View {
         .safeAreaInset(edge: .bottom) {
             GoldButton(title: document == nil ? "Włóż do portfela" : "Zapisz zmiany",
                        symbol: document == nil ? "wallet.pass" : "checkmark") { save() }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 8)
+                .padding(.horizontal, DT.Space.gutter)
+                .padding(.bottom, DT.Space.xs)
                 .background(
-                    LinearGradient(colors: [W.leather.opacity(0), W.leather], startPoint: .top, endPoint: .center)
+                    LinearGradient(colors: [DT.Palette.background.opacity(0), DT.Palette.background], startPoint: .top, endPoint: .center)
                         .ignoresSafeArea()
                 )
         }
     }
 
     private func dateSection(_ category: DocumentCategory) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DT.Space.sm) {
             Button {
                 withAnimation(.spring(duration: 0.4, bounce: 0.2)) { showingCalendar.toggle() }
             } label: {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DT.Space.xxs) {
                         Text(category == .subscription ? "Następna płatność" : "Ważny do")
-                            .font(.subheadline).foregroundStyle(W.muted)
+                            .font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
                         Text(PL.date(expiryDate))
-                            .font(.brico(20, .heavy))
+                            .font(DT.Typography.title3)
                             .contentTransition(.numericText())
                     }
                     Spacer()
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(W.muted)
+                        .font(DT.Typography.subheadlineEmphasized)
+                        .foregroundStyle(DT.Palette.textSecondary)
                         .rotationEffect(.degrees(showingCalendar ? 180 : 0))
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
-            HStack(spacing: 8) {
+            HStack(spacing: DT.Space.xs) {
                 quick("+1 mies.", months: 1)
                 quick("+1 rok", months: 12)
                 quick("+5 lat", months: 60)
@@ -240,25 +240,25 @@ struct DocumentEditView: View {
                 DatePicker("Data", selection: $expiryDate, displayedComponents: .date)
                     .datePickerStyle(.graphical)
                     .labelsHidden()
-                    .tint(W.gold)
+                    .tint(DT.Palette.accent)
                     .environment(\.locale, PL.locale)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             if isReading {
-                HStack(spacing: 10) {
-                    ProgressView().tint(W.gold)
-                    Text("Odczytuję datę ze skanu…").font(.subheadline).foregroundStyle(W.muted)
+                HStack(spacing: DT.Space.sm) {
+                    ProgressView().tint(DT.Palette.accent)
+                    Text("Odczytuję datę ze skanu…").font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
                 }
             } else if let ocrMessage {
                 Label(ocrMessage, systemImage: ocrFound ? "text.viewfinder" : "exclamationmark.triangle")
-                    .font(.subheadline)
-                    .foregroundStyle(ocrFound ? W.gold : Palette.soon)
+                    .font(DT.Typography.subheadline)
+                    .foregroundStyle(ocrFound ? DT.Palette.accent : DT.Palette.warning)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .padding(16)
-        .walletPanel(radius: 16)
+        .padding(DT.Space.md)
+        .walletPanel()
         .sensoryFeedback(.selection, trigger: expiryDate)
     }
 
@@ -274,77 +274,77 @@ struct DocumentEditView: View {
     private func pill(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.brico(14, .bold, relativeTo: .subheadline))
+                .font(DT.Typography.subheadlineEmphasized)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(isOn ? W.goldInk : W.cream)
-                .frame(maxWidth: .infinity, minHeight: 40)
-                .background(isOn ? W.gold : W.surfaceHi, in: Capsule())
+                .foregroundStyle(isOn ? DT.Palette.onAccent : DT.Palette.textPrimary)
+                .frame(maxWidth: .infinity, minHeight: DT.Size.chip)
+                .background(isOn ? DT.Palette.accent : DT.Palette.surfaceRaised, in: Capsule())
         }
         .buttonStyle(CardPressStyle())
     }
 
     private var scanSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DT.Space.sm) {
             if let data = scanImageData, let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-                    .frame(maxHeight: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .frame(maxHeight: DT.Size.scanPreview)
+                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
                     .frame(maxWidth: .infinity)
                     .overlay(alignment: .topTrailing) {
                         Button {
                             withAnimation { scanImageData = nil; ocrMessage = nil }
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(W.cream)
-                                .frame(width: 32, height: 32)
-                                .background(.black.opacity(0.55), in: Circle())
+                                .font(DT.Typography.footnoteEmphasized)
+                                .foregroundStyle(DT.Palette.onScrim)
+                                .frame(width: DT.Space.xl, height: DT.Space.xl)
+                                .background(DT.Palette.scrim.opacity(0.55), in: Circle())
                         }
-                        .frame(width: 44, height: 44)
+                        .frame(width: DT.Size.touch, height: DT.Size.touch)
                         .accessibilityLabel("Usuń skan")
                     }
             }
             if DocumentScanner.isSupported {
                 Button { showingScanner = true } label: {
                     Label(scanImageData == nil ? "Zeskanuj dokument" : "Zeskanuj ponownie", systemImage: "doc.viewfinder")
-                        .font(.brico(16, .bold))
-                        .foregroundStyle(W.gold)
-                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .font(DT.Typography.headline)
+                        .foregroundStyle(DT.Palette.accentText)
+                        .frame(maxWidth: .infinity, minHeight: DT.Size.field)
                 }
                 .buttonStyle(CardPressStyle())
                 if scanImageData == nil {
                     Text("Ze skanu odczytam datę ważności. Zdjęcie zostaje na telefonie.")
-                        .font(.footnote)
-                        .foregroundStyle(W.muted)
+                        .font(DT.Typography.footnote)
+                        .foregroundStyle(DT.Palette.textSecondary)
                         .multilineTextAlignment(.center)
                 }
             }
         }
-        .padding(16)
-        .walletPanel(radius: 16)
+        .padding(DT.Space.md)
+        .walletPanel()
     }
 
     private func field(_ label: String, text: Binding<String>, prompt: String, focus field: Field,
                        characters: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.subheadline).foregroundStyle(W.muted)
-            TextField("", text: text, prompt: Text(prompt).foregroundStyle(W.faint))
-                .font(.brico(18, .bold))
+        VStack(alignment: .leading, spacing: DT.Space.xxs) {
+            Text(label).font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+            TextField("", text: text, prompt: Text(prompt).foregroundStyle(DT.Palette.textTertiary))
+                .font(DT.Typography.headline)
                 .textInputAutocapitalization(characters ? .characters : .sentences)
                 .autocorrectionDisabled(characters)
                 .focused($focus, equals: field)
                 .submitLabel(.next)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DT.Space.md)
+        .padding(.vertical, DT.Space.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .walletPanel(radius: 16)
+        .walletPanel()
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(W.gold.opacity(focus == field ? 0.7 : 0), lineWidth: 1.5)
+            RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous)
+                .strokeBorder(DT.Palette.accent.opacity(focus == field ? 0.7 : 0), lineWidth: DT.Size.hairline * 2)
         }
         .animation(.snappy, value: focus)
         .contentShape(Rectangle())
@@ -478,42 +478,41 @@ struct CategoryPicker: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: DT.Space.gutter) {
                 HStack {
                     Spacer()
                     Button("Anuluj", action: onCancel)
-                        .font(.brico(16, .bold))
-                        .foregroundStyle(W.muted)
-                        .frame(minHeight: 44)
+                        .font(DT.Typography.headline)
+                        .foregroundStyle(DT.Palette.textSecondary)
+                        .frame(minHeight: DT.Size.touch)
                 }
                 Text("Co wkładasz\ndo portfela?")
-                    .font(.brico(36, .heavy, relativeTo: .largeTitle))
-                    .tracking(-1)
+                    .font(DT.Typography.largeTitle)
                     .riseIn(0)
 
                 if canScan {
                     Button(action: onScan) {
-                        HStack(spacing: 14) {
+                        HStack(spacing: DT.Space.md) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(W.gold, lineWidth: 2)
-                                    .frame(width: 52, height: 40)
+                                RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous)
+                                    .strokeBorder(DT.Palette.accent, lineWidth: DT.Size.hairline * 2)
+                                    .frame(width: DT.Size.hologram.width, height: DT.Size.hologram.height)
                                 Rectangle()
-                                    .fill(W.gold)
-                                    .frame(width: 40, height: 2)
-                                    .offset(y: scanLine && !reduceMotion ? 12 : -12)
+                                    .fill(DT.Palette.accent)
+                                    .frame(width: DT.Size.hologram.height, height: DT.Size.hairline * 2)
+                                    .offset(y: scanLine && !reduceMotion ? DT.Space.sm : -DT.Space.sm)
                             }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Zeskanuj dokument").font(.brico(18, .bold))
+                            VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                                Text("Zeskanuj dokument").font(DT.Typography.headline)
                                 Text("Rozpoznam rodzaj i datę ważności")
-                                    .font(.subheadline)
-                                    .foregroundStyle(W.muted)
+                                    .font(DT.Typography.subheadline)
+                                    .foregroundStyle(DT.Palette.textSecondary)
                             }
                             Spacer()
                         }
-                        .padding(16)
-                        .walletPanel(radius: 20)
-                        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(W.gold.opacity(0.5), lineWidth: 1))
+                        .padding(DT.Space.md)
+                        .walletPanel()
+                        .overlay(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous).strokeBorder(DT.Palette.accent.opacity(0.5), lineWidth: DT.Size.hairline))
                     }
                     .buttonStyle(CardPressStyle())
                     .riseIn(1)
@@ -525,11 +524,11 @@ struct CategoryPicker: View {
                 ForEach(Array(CategoryGroup.allCases.enumerated()), id: \.element) { index, group in
                     let items = group.categories.filter { $0 != .other }
                     if !items.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: DT.Space.sm) {
                             Text(group.title)
-                                .font(.brico(15, .bold, relativeTo: .subheadline))
-                                .foregroundStyle(W.muted)
-                            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                                .font(DT.Typography.subheadlineEmphasized)
+                                .foregroundStyle(DT.Palette.textSecondary)
+                            LazyVGrid(columns: [GridItem(.flexible(), spacing: DT.Space.sm), GridItem(.flexible(), spacing: DT.Space.sm)], spacing: DT.Space.sm) {
                                 ForEach(items) { item in
                                     CategoryTile(category: item) { onPick(item) }
                                 }
@@ -542,21 +541,21 @@ struct CategoryPicker: View {
                 Button { onPick(.other) } label: {
                     HStack {
                         Image(systemName: DocumentCategory.other.symbol)
-                        Text("Coś innego").font(.brico(16, .bold))
+                        Text("Coś innego").font(DT.Typography.headline)
                         Spacer()
-                        Image(systemName: "chevron.right").foregroundStyle(W.faint)
+                        Image(systemName: "chevron.right").foregroundStyle(DT.Palette.textTertiary)
                     }
-                    .foregroundStyle(W.cream)
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 54)
-                    .walletPanel(radius: 16)
+                    .foregroundStyle(DT.Palette.textPrimary)
+                    .padding(.horizontal, DT.Space.md)
+                    .frame(minHeight: DT.Size.row)
+                    .walletPanel()
                 }
                 .buttonStyle(CardPressStyle())
                 .riseIn(7)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 40)
+            .padding(.horizontal, DT.Space.gutter)
+            .padding(.top, DT.Space.md)
+            .padding(.bottom, DT.Space.xxl)
         }
         .scrollIndicators(.hidden)
     }

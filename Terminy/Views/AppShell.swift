@@ -68,13 +68,13 @@ final class AppRouter {
 
     func open(_ document: Document) {
         Haptics.shared.fire(.pull)
-        withAnimation(.spring(duration: 0.55, bounce: 0.18)) { opened = document }
+        withAnimation(DT.Motion.open) { opened = document }
     }
 
     func close() {
         guard opened != nil else { return }
         Haptics.shared.fire(.stow)
-        withAnimation(.spring(duration: 0.5, bounce: 0.15)) { opened = nil }
+        withAnimation(DT.Motion.close) { opened = nil }
     }
 
     func add(_ category: DocumentCategory? = nil, scan: Bool = false) {
@@ -141,9 +141,9 @@ struct MainTabView: View {
             .id(router.tab)
 
             Dock(selection: $router.tab) { router.add() }
-                .padding(.bottom, 6)
+                .padding(.bottom, DT.Space.xs)
                 .opacity(router.opened == nil ? 1 : 0)
-                .offset(y: router.opened == nil ? 0 : 120)
+                .offset(y: router.opened == nil ? 0 : DT.Space.dockClearance)
 
             if let doc = router.opened {
                 CardDetailView(document: doc, cards: cards)
@@ -156,13 +156,13 @@ struct MainTabView: View {
                     toast.undo?()
                     router.toast = nil
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, router.opened == nil ? 96 : 24)
+                .padding(.horizontal, DT.Space.gutter)
+                .padding(.bottom, router.opened == nil ? DT.Space.xxl * 2 : DT.Space.lg)
                 .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.9)))
                 .zIndex(3)
             }
         }
-        .foregroundStyle(W.cream)
+        .foregroundStyle(DT.Palette.textPrimary)
         .animation(.spring(duration: 0.45, bounce: 0.3), value: router.toast)
         .animation(.snappy(duration: 0.3), value: router.tab)
         .environment(router)
@@ -193,14 +193,14 @@ struct Dock: View {
     @Namespace private var pill
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DT.Space.xxs) {
             item(.home)
             item(.calendar)
             addButton
             item(.reminders)
             item(.settings)
         }
-        .padding(7)
+        .padding(DT.Space.xs)
         .dockBackground()
     }
 
@@ -211,14 +211,14 @@ struct Dock: View {
         } label: {
             Image(systemName: tab.symbol)
                 .symbolVariant(isOn ? .fill : .none)
-                .font(.system(size: 20, weight: .semibold))
+                .font(DT.Typography.title3)
                 .symbolEffect(.bounce, value: isOn)
-                .foregroundStyle(isOn ? W.cream : W.faint)
-                .frame(width: 54, height: 52)
+                .foregroundStyle(isOn ? DT.Palette.textPrimary : DT.Palette.textTertiary)
+                .frame(width: DT.Size.dockItem.width, height: DT.Size.dockItem.height)
                 .background {
                     if isOn {
                         Capsule()
-                            .fill(Color.white.opacity(0.14))
+                            .fill(DT.Palette.surfaceRaised)
                             .matchedGeometryEffect(id: "pill", in: pill)
                     }
                 }
@@ -232,14 +232,14 @@ struct Dock: View {
     private var addButton: some View {
         Button(action: onAdd) {
             Image(systemName: "plus")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(W.goldInk)
-                .frame(width: 60, height: 60)
-                .background(W.gold, in: Circle())
-                .shadow(color: W.gold.opacity(0.35), radius: 12, y: 4)
+                .font(DT.Typography.title2)
+                .foregroundStyle(DT.Palette.onAccent)
+                .frame(width: DT.Size.dockPlus, height: DT.Size.dockPlus)
+                .background(DT.Palette.accent, in: Circle())
+                .shadow(color: DT.Palette.accent.opacity(0.35), radius: DT.Space.sm, y: DT.Space.xxs)
         }
         .buttonStyle(CardPressStyle())
-        .padding(.horizontal, 2)
+        .padding(.horizontal, DT.Space.xxs)
         .accessibilityLabel("Dodaj dokument")
     }
 }
@@ -248,7 +248,7 @@ private struct DockBackground: ViewModifier {
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            content.glassEffect(.regular.tint(W.leatherDeep.opacity(0.55)), in: Capsule())
+            content.glassEffect(.regular.tint(DT.Palette.backgroundDeep.opacity(0.55)), in: Capsule())
         } else {
             fallback(content)
         }
@@ -260,9 +260,9 @@ private struct DockBackground: ViewModifier {
     private func fallback(_ content: Content) -> some View {
         content
             .background(.ultraThinMaterial, in: Capsule())
-            .background(W.leatherDeep.opacity(0.6), in: Capsule())
-            .overlay(Capsule().strokeBorder(W.stroke, lineWidth: 1))
-            .shadow(color: .black.opacity(0.5), radius: 24, y: 14)
+            .background(DT.Palette.backgroundDeep.opacity(0.6), in: Capsule())
+            .overlay(Capsule().strokeBorder(DT.Palette.separator, lineWidth: DT.Size.hairline))
+            .shadow(color: DT.Palette.shadow, radius: DT.Space.lg, y: DT.Space.md)
     }
 }
 
@@ -276,26 +276,26 @@ struct ToastView: View {
     let onUndo: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DT.Space.sm) {
             Image(systemName: toast.symbol)
-                .font(.title3)
-                .foregroundStyle(W.gold)
+                .font(DT.Typography.title3)
+                .foregroundStyle(DT.Palette.accentText)
                 .symbolEffect(.bounce, value: toast.id)
             Text(toast.text)
-                .font(.brico(15, .medium, relativeTo: .subheadline))
-                .foregroundStyle(W.cream)
+                .font(DT.Typography.subheadline)
+                .foregroundStyle(DT.Palette.textPrimary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if toast.undo != nil {
                 Button("Cofnij", action: onUndo)
-                    .font(.brico(15, .bold, relativeTo: .subheadline))
-                    .foregroundStyle(W.gold)
-                    .frame(minHeight: 44)
+                    .font(DT.Typography.subheadlineEmphasized)
+                    .foregroundStyle(DT.Palette.accentText)
+                    .frame(minHeight: DT.Size.touch)
             }
         }
-        .padding(.leading, 16)
-        .padding(.trailing, toast.undo == nil ? 16 : 12)
-        .frame(minHeight: 54)
+        .padding(.leading, DT.Space.md)
+        .padding(.trailing, toast.undo == nil ? DT.Space.md : DT.Space.sm)
+        .frame(minHeight: DT.Size.row)
         .dockBackground()
         .accessibilityElement(children: .contain)
     }

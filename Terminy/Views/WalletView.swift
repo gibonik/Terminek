@@ -56,15 +56,14 @@ struct WalletView: View {
     // MARK: Nagłówek
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DT.Space.md) {
             HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DT.Space.xxs) {
                     Text(PL.dayAndMonth(.now))
-                        .font(.brico(15, .medium, relativeTo: .subheadline))
-                        .foregroundStyle(W.muted)
+                        .font(DT.Typography.subheadline)
+                        .foregroundStyle(DT.Palette.textSecondary)
                     Text("Portfel")
-                        .font(.brico(44, .heavy, relativeTo: .largeTitle))
-                        .tracking(-1.5)
+                        .font(DT.Typography.largeTitle)
                 }
                 Spacer()
                 if !documents.isEmpty {
@@ -80,27 +79,27 @@ struct WalletView: View {
             }
 
             if searching {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(W.muted)
-                    TextField("", text: $search, prompt: Text("Nazwa, osoba albo numer").foregroundStyle(W.faint))
-                        .font(.brico(17, .medium))
+                HStack(spacing: DT.Space.sm) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(DT.Palette.textSecondary)
+                    TextField("", text: $search, prompt: Text("Nazwa, osoba albo numer").foregroundStyle(DT.Palette.textTertiary))
+                        .font(DT.Typography.body)
                         .focused($searchFocused)
                         .submitLabel(.search)
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 46)
-                .walletPanel(radius: 23)
+                .padding(.horizontal, DT.Space.md)
+                .frame(height: DT.Size.field)
+                .walletCapsule()
                 .transition(.move(edge: .top).combined(with: .opacity))
             } else if !documents.isEmpty {
                 chips
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 22)
-        .padding(.top, 8)
-        .padding(.bottom, 18)
+        .padding(.horizontal, DT.Space.lg)
+        .padding(.top, DT.Space.xs)
+        .padding(.bottom, DT.Space.gutter)
         .background {
-            LinearGradient(colors: [W.leatherTop, W.leatherTop.opacity(0.92), W.leatherTop.opacity(0)],
+            LinearGradient(colors: [DT.Palette.backgroundTop, DT.Palette.backgroundTop.opacity(0.92), DT.Palette.backgroundTop.opacity(0)],
                            startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         }
@@ -110,17 +109,17 @@ struct WalletView: View {
         let expired = documents.filter { $0.daysLeft() < 0 }.count
         let soon = documents.filter { (0...30).contains($0.daysLeft()) }.count
         return ScrollView(.horizontal) {
-            HStack(spacing: 8) {
+            HStack(spacing: DT.Space.xs) {
                 chip(expired > 0 ? "Wszystkie" : "Wszystkie \(documents.count)", isOn: filter == .all) { filter = .all }
                 if expired > 0 {
                     Button { withAnimation(.snappy) { filter = .urgent } } label: {
                         Text(expired == 1 ? "1 po terminie" : "\(expired) po terminie")
-                            .font(.brico(14, .bold, relativeTo: .subheadline))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 13)
-                            .frame(height: 36)
-                            .background(W.alert, in: Capsule())
-                            .overlay(Capsule().strokeBorder(.white.opacity(filter == .urgent ? 0.9 : 0), lineWidth: 2))
+                            .font(DT.Typography.subheadlineEmphasized)
+                            .foregroundStyle(DT.Palette.onDanger)
+                            .padding(.horizontal, DT.Space.sm)
+                            .frame(height: DT.Size.chip)
+                            .background(DT.Palette.dangerFill, in: Capsule())
+                            .overlay(Capsule().strokeBorder(DT.Palette.onDanger.opacity(filter == .urgent ? 0.9 : 0), lineWidth: DT.Size.hairline * 2))
                     }
                     .buttonStyle(CardPressStyle())
                 }
@@ -141,14 +140,14 @@ struct WalletView: View {
 
     private func chip(_ title: String, dot: Color? = nil, isOn: Bool, action: @escaping () -> Void) -> some View {
         Button { withAnimation(.snappy) { action() } } label: {
-            HStack(spacing: 7) {
-                if let dot { Circle().fill(dot).frame(width: 8, height: 8) }
-                Text(title).font(.brico(14, .bold, relativeTo: .subheadline))
+            HStack(spacing: DT.Space.xs) {
+                if let dot { Circle().fill(dot).frame(width: DT.Space.xs, height: DT.Space.xs) }
+                Text(title).font(DT.Typography.subheadlineEmphasized)
             }
-            .foregroundStyle(isOn ? W.goldInk : W.cream)
-            .padding(.horizontal, 13)
-            .frame(height: 36)
-            .background(isOn ? W.cream : W.surfaceHi, in: Capsule())
+            .foregroundStyle(isOn ? DT.Palette.onAccent : DT.Palette.textPrimary)
+            .padding(.horizontal, DT.Space.sm)
+            .frame(height: DT.Size.chip)
+            .background(isOn ? DT.Palette.accent : DT.Palette.surfaceRaised, in: Capsule())
         }
         .buttonStyle(CardPressStyle())
         .accessibilityAddTraits(isOn ? .isSelected : [])
@@ -159,12 +158,12 @@ struct WalletView: View {
     private var cardStack: some View {
         let docs = stack
         return ScrollView {
-            VStack(spacing: W.cardPeek - W.cardHeight) {
+            VStack(spacing: DT.Size.cardPeek - DT.Size.cardHeight) {
                 ForEach(Array(docs.enumerated()), id: \.element.id) { index, doc in
                     let isFront = index == docs.count - 1
                     Group {
                         if router.opened?.id == doc.id {
-                            Color.clear.frame(height: W.cardHeight)
+                            Color.clear.frame(height: DT.Size.cardHeight)
                         } else {
                             Button { router.open(doc) } label: {
                                 DocCard(data: CardData(doc), full: isFront)
@@ -185,29 +184,29 @@ struct WalletView: View {
                 }
 
                 if docs.isEmpty {
-                    VStack(spacing: 8) {
+                    VStack(spacing: DT.Space.xs) {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundStyle(W.faint)
+                            .font(DT.Typography.title2)
+                            .foregroundStyle(DT.Palette.textTertiary)
                         Text(search.isEmpty ? "Nic tu nie pasuje do filtra." : "Brak dokumentów dla „\(search)”.")
-                            .font(.brico(17, .medium))
-                            .foregroundStyle(W.muted)
+                            .font(DT.Typography.body)
+                            .foregroundStyle(DT.Palette.textSecondary)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 80)
+                    .padding(.top, DT.Space.xxl)
                 }
 
                 if let summary = subscriptionsSummary, search.isEmpty {
                     Text(summary)
-                        .font(.brico(14, .medium, relativeTo: .footnote))
-                        .foregroundStyle(W.muted)
+                        .font(DT.Typography.subheadline)
+                        .foregroundStyle(DT.Palette.textSecondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.top, W.cardHeight - W.cardPeek + 18)
+                        .padding(.top, DT.Size.cardHeight - DT.Size.cardPeek + DT.Space.gutter)
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 196)
-            .padding(.bottom, 120)
+            .padding(.horizontal, DT.Space.gutter)
+            .padding(.top, DT.Space.xxl)
+            .padding(.bottom, DT.Space.dockClearance)
         }
         .defaultScrollAnchor(.bottom)
         .scrollIndicators(.hidden)
@@ -245,31 +244,31 @@ struct EmptyWalletView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: DT.Space.lg) {
                 ZStack {
                     ForEach(0..<3, id: \.self) { i in
-                        RoundedRectangle(cornerRadius: W.cardRadius, style: .continuous)
-                            .strokeBorder(W.cream.opacity(0.22), style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
-                            .frame(height: 180)
-                            .offset(y: CGFloat(i) * 22)
+                        RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous)
+                            .strokeBorder(DT.Palette.textPrimary.opacity(0.22), style: StrokeStyle(lineWidth: DT.Size.hairline * 2, dash: [DT.Space.xs, DT.Space.xs]))
+                            .frame(height: DT.Size.emptySlot)
+                            .offset(y: CGFloat(i) * DT.Space.lg)
                             .scaleEffect(1 - CGFloat(2 - i) * 0.05)
                     }
-                    VStack(spacing: 6) {
+                    VStack(spacing: DT.Space.xs) {
                         Image(systemName: "wallet.pass")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(W.gold)
+                            .font(DT.Typography.title2)
+                            .foregroundStyle(DT.Palette.accentText)
                             .scaleEffect(breathe && !reduceMotion ? 1.08 : 1)
                         Text("Portfel jest pusty")
-                            .font(.brico(22, .heavy, relativeTo: .title2))
+                            .font(DT.Typography.title2)
                         Text("Włóż pierwszy dokument, a przypomnę o nim miesiąc, tydzień i dzień przed terminem.")
-                            .font(.brico(15, .medium, relativeTo: .subheadline))
-                            .foregroundStyle(W.muted)
+                            .font(DT.Typography.subheadline)
+                            .foregroundStyle(DT.Palette.textSecondary)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 26)
+                            .padding(.horizontal, DT.Space.lg)
                     }
-                    .offset(y: 22)
+                    .offset(y: DT.Space.lg)
                 }
-                .padding(.bottom, 26)
+                .padding(.bottom, DT.Space.lg)
                 .riseIn(0)
 
                 if DocumentScanner.isSupported {
@@ -278,7 +277,7 @@ struct EmptyWalletView: View {
                 }
 
                 WalletSectionTitle(text: "Najczęściej wkładane").riseIn(2)
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: DT.Space.sm), GridItem(.flexible(), spacing: DT.Space.sm)], spacing: DT.Space.sm) {
                     ForEach(Array(common.enumerated()), id: \.element) { index, category in
                         CategoryTile(category: category) { router.add(category) }
                             .riseIn(3 + index)
@@ -286,17 +285,17 @@ struct EmptyWalletView: View {
                 }
                 Button { router.add() } label: {
                     Text("Coś innego")
-                        .font(.brico(16, .bold))
-                        .foregroundStyle(W.cream)
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .walletPanel(radius: 16)
+                        .font(DT.Typography.headline)
+                        .foregroundStyle(DT.Palette.textPrimary)
+                        .frame(maxWidth: .infinity, minHeight: DT.Size.row)
+                        .walletPanel()
                 }
                 .buttonStyle(CardPressStyle())
                 .riseIn(9)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 130)
-            .padding(.bottom, 120)
+            .padding(.horizontal, DT.Space.gutter)
+            .padding(.top, DT.Space.xxl)
+            .padding(.bottom, DT.Space.dockClearance)
         }
         .scrollIndicators(.hidden)
         .onAppear {
@@ -314,25 +313,25 @@ struct CategoryTile: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 0) {
                 Image(systemName: category.symbol)
-                    .font(.system(size: 20, weight: .semibold))
-                Spacer(minLength: 8)
+                    .font(DT.Typography.title3)
+                Spacer(minLength: DT.Space.xs)
                 Text(category.title)
-                    .font(.brico(15, .bold, relativeTo: .subheadline))
+                    .font(DT.Typography.subheadlineEmphasized)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
             }
             .foregroundStyle(category.group.ink)
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+            .padding(DT.Space.md)
+            .frame(maxWidth: .infinity, minHeight: DT.Size.tile, alignment: .leading)
             .background {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous).fill(category.group.color)
-                    GuillocheShape().stroke(category.group.ink.opacity(0.08), lineWidth: 0.7)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous).fill(category.group.color)
+                    GuillocheShape().stroke(category.group.ink.opacity(0.08), lineWidth: DT.Size.hairline / 2)
+                        .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
                 }
             }
-            .shadow(color: .black.opacity(0.3), radius: 10, y: 6)
+            .shadow(color: DT.Palette.shadow, radius: DT.Space.sm, y: DT.Space.xs)
         }
         .buttonStyle(CardPressStyle())
     }

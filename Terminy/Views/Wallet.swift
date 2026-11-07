@@ -3,46 +3,15 @@ import CoreMotion
 
 // MARK: - Motyw „Portfel”
 //
-// Ciemna skóra portfela, kremowy tekst, mosiężne zapięcie jako jedyny akcent.
+// Skóra portfela (jasna lub ciemna, zależnie od trybu), mosiężne zapięcie jako jedyny akcent.
 // Dokumenty to karty w kolorach grup z giloszem i hologramem, który reaguje na przechylenie telefonu.
-
-enum W {
-    static let leatherTop = Color(hex: 0x3A2F27)
-    static let leather = Color(hex: 0x231C17)
-    static let leatherDeep = Color(hex: 0x16110E)
-    static let cream = Color(hex: 0xF6EBDD)
-    static let muted = Color(hex: 0xF6EBDD).opacity(0.62)
-    static let faint = Color(hex: 0xF6EBDD).opacity(0.38)
-    static let surface = Color.white.opacity(0.07)
-    static let surfaceHi = Color.white.opacity(0.12)
-    static let stroke = Color.white.opacity(0.09)
-    static let gold = Color(hex: 0xFFD68C)
-    static let goldInk = Color(hex: 0x2A1A08)
-    static let alert = Color(hex: 0xD93A4C)
-
-    static let cardHeight: CGFloat = 220
-    static let cardPeek: CGFloat = 66
-    static let cardRadius: CGFloat = 24
-}
-
-extension Font {
-    /// Bricolage Grotesque z aplikacji, skalowana razem z Dynamic Type.
-    static func brico(_ size: CGFloat, _ weight: Font.Weight = .bold, relativeTo style: Font.TextStyle = .body) -> Font {
-        let name: String
-        switch weight {
-        case .black, .heavy: name = "BricolageGrotesque-ExtraBold"
-        case .bold, .semibold: name = "BricolageGrotesque-Bold"
-        default: name = "BricolageGrotesque-Medium"
-        }
-        return .custom(name, size: size, relativeTo: style)
-    }
-}
+// Wszystkie liczby i kolory pochodzą z `DesignTokens`.
 
 /// Tło: skóra z delikatnym światłem z góry i ziarnem.
 struct WalletBackground: View {
     var body: some View {
         ZStack {
-            RadialGradient(colors: [W.leatherTop, W.leather, W.leatherDeep],
+            RadialGradient(colors: [DT.Palette.backgroundTop, DT.Palette.background, DT.Palette.backgroundDeep],
                            center: .init(x: 0.5, y: -0.05), startRadius: 20, endRadius: 760)
             Canvas { context, size in
                 var rng = SeededRandom(seed: 7)
@@ -51,7 +20,7 @@ struct WalletBackground: View {
                     let y = CGFloat(rng.next()) * size.height
                     let light = rng.next() > 0.5
                     context.fill(Path(ellipseIn: CGRect(x: x, y: y, width: 1.2, height: 1.2)),
-                                 with: .color(light ? Color.white.opacity(0.035) : Color.black.opacity(0.12)))
+                                 with: .color(light ? DT.Palette.grainLight : DT.Palette.grainDark))
                 }
             }
             .allowsHitTesting(false)
@@ -182,109 +151,107 @@ struct DocCard: View {
         let ink = group.ink
         let expired = data.daysLeft < 0
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: W.cardRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous)
                 .fill(group.color)
 
             GuillocheShape()
-                .stroke(ink.opacity(0.1), lineWidth: 0.8)
+                .stroke(ink.opacity(0.1), lineWidth: DT.Size.hairline)
 
             HoloFoil(active: tilt)
-                .frame(width: 54, height: 40)
-                .padding(.top, 18)
-                .padding(.trailing, 18)
+                .frame(width: DT.Size.hologram.width, height: DT.Size.hologram.height)
+                .padding(.top, DT.Space.gutter)
+                .padding(.trailing, DT.Space.gutter)
                 .frame(maxWidth: .infinity, alignment: .trailing)
 
             Sheen(active: tilt)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 7) {
+            VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                HStack(spacing: DT.Space.xs) {
                     Image(systemName: data.category.symbol)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(DT.Typography.footnoteEmphasized)
                     Text(data.category.title)
-                        .font(.brico(13, .medium, relativeTo: .caption))
+                        .font(DT.Typography.footnote)
                 }
                 .opacity(0.72)
-                .padding(.trailing, 70)
+                .padding(.trailing, DT.Space.xxl + DT.Space.lg)
 
                 Text(data.title)
-                    .font(.brico(22, .heavy, relativeTo: .title2))
-                    .tracking(-0.4)
+                    .font(DT.Typography.title2)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
-                    .padding(.trailing, full ? 70 : 120)
+                    .padding(.trailing, full ? DT.Size.hologram.width + DT.Space.md : DT.Space.xxl * 2 + DT.Space.lg)
 
                 if full, !data.secondLine.isEmpty {
                     Text(data.secondLine)
-                        .font(.brico(15, .medium, relativeTo: .subheadline))
+                        .font(DT.Typography.subheadline)
                         .opacity(0.8)
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 18)
+            .padding(.horizontal, DT.Space.lg)
+            .padding(.top, DT.Space.gutter)
 
             if !full {
                 Text(DaysText.compact(to: data.expiryDate))
-                    .font(.brico(13, .bold, relativeTo: .caption))
+                    .font(DT.Typography.footnoteEmphasized)
                     .monospacedDigit()
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(expired ? W.alert : Color.black.opacity(0.13), in: Capsule())
-                    .foregroundStyle(expired ? Color.white : ink)
-                    .padding(.top, 46)
-                    .padding(.trailing, 18)
+                    .padding(.horizontal, DT.Space.sm)
+                    .padding(.vertical, DT.Space.xxs)
+                    .background(expired ? DT.Palette.dangerFill : DT.Palette.Card.lowlight.opacity(0.13), in: Capsule())
+                    .foregroundStyle(expired ? DT.Palette.onDanger : ink)
+                    .padding(.top, DT.Space.xxl)
+                    .padding(.trailing, DT.Space.gutter)
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
             if full {
                 HStack(alignment: .lastTextBaseline) {
-                    VStack(alignment: .leading, spacing: 1) {
+                    VStack(alignment: .leading, spacing: DT.Space.xxs) {
                         Text(data.category == .subscription ? "Płatność" : "Ważny do")
-                            .font(.brico(12, .medium, relativeTo: .caption))
+                            .font(DT.Typography.caption)
                             .opacity(0.7)
                         Text(PL.numeric(data.expiryDate))
-                            .font(.brico(17, .bold, relativeTo: .headline))
+                            .font(DT.Typography.headline)
                             .monospacedDigit()
                             .contentTransition(.numericText())
                     }
                     Spacer()
                     let count = data.bigCount
-                    HStack(alignment: .lastTextBaseline, spacing: 4) {
+                    HStack(alignment: .lastTextBaseline, spacing: DT.Space.xxs) {
                         Text(count.value)
-                            .font(.brico(count.unit == nil ? 44 : 64, .heavy, relativeTo: .largeTitle))
-                            .tracking(-2)
+                            .font(count.unit == nil ? DT.Typography.largeTitle : DT.Typography.display)
                             .contentTransition(.numericText(countsDown: true))
                         if let unit = count.unit {
-                            Text(unit).font(.brico(18, .bold, relativeTo: .headline))
+                            Text(unit).font(DT.Typography.headline)
                         }
                     }
                     // Wytłoczenie jak na plastikowej karcie.
-                    .shadow(color: .white.opacity(0.35), radius: 0, y: 1)
-                    .shadow(color: .black.opacity(0.22), radius: 0, y: -1)
+                    .shadow(color: DT.Palette.Card.highlight.opacity(0.35), radius: 0, y: DT.Size.hairline)
+                    .shadow(color: DT.Palette.Card.lowlight.opacity(0.22), radius: 0, y: -DT.Size.hairline)
                 }
-                .padding(.horizontal, 22)
-                .padding(.bottom, 16)
+                .padding(.horizontal, DT.Space.lg)
+                .padding(.bottom, DT.Space.md)
                 .frame(maxHeight: .infinity, alignment: .bottom)
 
                 if expired {
                     ExpiredStamp()
-                        .padding(.trailing, 26)
-                        .padding(.top, 84)
+                        .padding(.trailing, DT.Space.lg)
+                        .padding(.top, DT.Space.xxl)
                         .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
         .foregroundStyle(ink)
-        .frame(height: W.cardHeight)
-        .clipShape(RoundedRectangle(cornerRadius: W.cardRadius, style: .continuous))
+        .frame(height: DT.Size.cardHeight)
+        .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: W.cardRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous)
                 .strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.45), .white.opacity(0.05)], startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1
+                    LinearGradient(colors: [DT.Palette.Card.highlight.opacity(0.45), DT.Palette.Card.highlight.opacity(0.05)], startPoint: .top, endPoint: .bottom),
+                    lineWidth: DT.Size.hairline
                 )
         }
-        .shadow(color: .black.opacity(0.45), radius: 20, y: 14)
+        .shadow(color: DT.Palette.shadow, radius: DT.Space.gutter, y: DT.Space.md)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(data.title), \(data.category.title)")
         .accessibilityValue(data.daysLeft < 0 ? "po terminie, \(PL.date(data.expiryDate))"
@@ -300,10 +267,9 @@ struct HoloFoil: View {
     var body: some View {
         let tilt = Tilt.shared
         let angle = active && !reduceMotion ? tilt.x * 160 + tilt.y * 60 : 30
-        RoundedRectangle(cornerRadius: 9, style: .continuous)
+        RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous)
             .fill(AngularGradient(
-                colors: [Color(hex: 0xFF9AD5), Color(hex: 0x9AE6FF), Color(hex: 0xC4FF9A),
-                         Color(hex: 0xFFF19A), Color(hex: 0xFFB59A), Color(hex: 0xFF9AD5)],
+                colors: DT.Palette.Card.holo,
                 center: .center, angle: .degrees(angle)))
             .overlay {
                 // Drobne linie jak w prawdziwym hologramie.
@@ -313,11 +279,11 @@ struct HoloFoil: View {
                         var p = Path()
                         p.move(to: CGPoint(x: x, y: size.height))
                         p.addLine(to: CGPoint(x: x + size.height, y: 0))
-                        context.stroke(p, with: .color(.white.opacity(0.35)), lineWidth: 0.6)
-                        x += 4
+                        context.stroke(p, with: .color(DT.Palette.Card.highlight.opacity(0.35)), lineWidth: DT.Size.hairline / 2)
+                        x += DT.Space.xxs
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DT.Radius.sm, style: .continuous))
             }
             .opacity(0.88)
             .blendMode(.screen)
@@ -334,12 +300,12 @@ struct Sheen: View {
         let tilt = Tilt.shared
         let shift = active && !reduceMotion ? tilt.x : -0.6
         GeometryReader { geo in
-            LinearGradient(colors: [.clear, .white.opacity(0.22), .clear],
+            LinearGradient(colors: [.clear, DT.Palette.Card.highlight.opacity(0.22), .clear],
                            startPoint: .leading, endPoint: .trailing)
                 .frame(width: geo.size.width * 0.5)
                 .rotationEffect(.degrees(20))
-                .offset(x: geo.size.width * (0.25 + shift * 0.55), y: -20)
-                .frame(height: geo.size.height + 40)
+                .offset(x: geo.size.width * (0.25 + shift * 0.55), y: -DT.Space.gutter)
+                .frame(height: geo.size.height + DT.Space.gutter * 2)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -373,15 +339,15 @@ struct ExpiredStamp: View {
 
     var body: some View {
         Text("Nieważny")
-            .font(.brico(17, .heavy, relativeTo: .headline))
-            .foregroundStyle(Color(hex: 0xB3122B))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .font(DT.Typography.headline)
+            .foregroundStyle(DT.Palette.Card.stamp)
+            .padding(.horizontal, DT.Space.sm)
+            .padding(.vertical, DT.Space.xxs)
             .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color(hex: 0xB3122B), lineWidth: 2.5)
+                RoundedRectangle(cornerRadius: DT.Radius.xs, style: .continuous)
+                    .stroke(DT.Palette.Card.stamp, lineWidth: DT.Size.hairline * 2)
             }
-            .background(Color.white.opacity(0.5), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .background(DT.Palette.Card.highlight.opacity(0.5), in: RoundedRectangle(cornerRadius: DT.Radius.xs, style: .continuous))
             .rotationEffect(.degrees(-10))
             .scaleEffect(landed || reduceMotion ? 1 : 2)
             .opacity(landed || reduceMotion ? 1 : 0)
@@ -403,7 +369,7 @@ struct CardPressStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .brightness(configuration.isPressed ? -0.03 : 0)
-            .animation(.spring(duration: 0.25, bounce: 0.3), value: configuration.isPressed)
+            .animation(DT.Motion.press, value: configuration.isPressed)
     }
 }
 
@@ -415,7 +381,7 @@ struct FlyIn: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .offset(y: shown || reduceMotion ? 0 : 560 + CGFloat(index) * 30)
+            .offset(y: shown || reduceMotion ? 0 : DT.Size.cardHeight * 2.5 + CGFloat(index) * DT.Space.xl)
             .rotationEffect(.degrees(shown || reduceMotion ? 0 : -5))
             .onAppear {
                 withAnimation(.spring(duration: 0.85, bounce: 0.22).delay(Double(index) * 0.06)) { shown = true }
@@ -432,7 +398,7 @@ struct RiseIn: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(shown || reduceMotion ? 1 : 0)
-            .offset(y: shown || reduceMotion ? 0 : 14)
+            .offset(y: shown || reduceMotion ? 0 : DT.Space.md)
             .onAppear {
                 withAnimation(.spring(duration: 0.5, bounce: 0.2).delay(0.12 + Double(index) * 0.05)) { shown = true }
             }
@@ -444,9 +410,15 @@ extension View {
     func riseIn(_ index: Int) -> some View { modifier(RiseIn(index: index)) }
 
     /// Panel w portfelu: lekko jaśniejsza skóra z cienką krawędzią.
-    func walletPanel(radius: CGFloat = 22) -> some View {
-        background(W.surface, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(W.stroke, lineWidth: 1))
+    func walletPanel(radius: CGFloat = DT.Radius.panel) -> some View {
+        background(DT.Palette.surface, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(DT.Palette.separator, lineWidth: DT.Size.hairline))
+    }
+
+    /// To samo co panel, ale w kształcie pigułki (wyszukiwarka, tagi).
+    func walletCapsule() -> some View {
+        background(DT.Palette.surface, in: Capsule())
+            .overlay(Capsule().strokeBorder(DT.Palette.separator, lineWidth: DT.Size.hairline))
     }
 }
 
@@ -454,17 +426,17 @@ extension View {
 struct RoundIconButton: View {
     let symbol: String
     let label: String
-    var size: CGFloat = 44
+    var size: CGFloat = DT.Size.touch
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(W.cream)
+                .font(DT.Typography.icon)
+                .foregroundStyle(DT.Palette.textPrimary)
                 .frame(width: size, height: size)
-                .background(W.surfaceHi, in: Circle())
-                .overlay(Circle().strokeBorder(W.stroke, lineWidth: 1))
+                .background(DT.Palette.surfaceRaised, in: Circle())
+                .overlay(Circle().strokeBorder(DT.Palette.separator, lineWidth: DT.Size.hairline))
         }
         .buttonStyle(CardPressStyle())
         .accessibilityLabel(label)
@@ -479,14 +451,14 @@ struct GoldButton: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 8) {
-                if let symbol { Image(systemName: symbol).font(.system(size: 17, weight: .bold)) }
-                Text(title).font(.brico(17, .bold, relativeTo: .headline))
+            HStack(spacing: DT.Space.xs) {
+                if let symbol { Image(systemName: symbol).font(DT.Typography.icon) }
+                Text(title).font(DT.Typography.headline)
             }
-            .foregroundStyle(W.goldInk)
-            .frame(maxWidth: .infinity, minHeight: 56)
-            .background(W.gold, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: W.gold.opacity(0.25), radius: 14, y: 6)
+            .foregroundStyle(DT.Palette.onAccent)
+            .frame(maxWidth: .infinity, minHeight: DT.Size.button)
+            .background(DT.Palette.accent, in: RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
+            .shadow(color: DT.Palette.accent.opacity(0.25), radius: DT.Space.md, y: DT.Space.xs)
         }
         .buttonStyle(CardPressStyle())
     }
@@ -497,15 +469,15 @@ struct MiniCard: View {
     let category: DocumentCategory
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 7, style: .continuous)
+        RoundedRectangle(cornerRadius: DT.Radius.xs, style: .continuous)
             .fill(category.group.color)
-            .frame(width: 46, height: 30)
+            .frame(width: DT.Size.miniCard.width, height: DT.Size.miniCard.height)
             .overlay {
                 Image(systemName: category.symbol)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(DT.Typography.footnoteEmphasized)
                     .foregroundStyle(category.group.ink)
             }
-            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).strokeBorder(.white.opacity(0.3), lineWidth: 0.5))
+            .overlay(RoundedRectangle(cornerRadius: DT.Radius.xs, style: .continuous).strokeBorder(DT.Palette.Card.highlight.opacity(0.3), lineWidth: DT.Size.hairline / 2))
             .accessibilityHidden(true)
     }
 }
@@ -516,25 +488,25 @@ struct DocRow: View {
 
     var body: some View {
         let days = document.daysLeft()
-        HStack(spacing: 14) {
+        HStack(spacing: DT.Space.md) {
             MiniCard(category: document.category)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DT.Space.xxs) {
                 Text(document.displayTitle)
-                    .font(.brico(17, .bold, relativeTo: .body))
-                    .foregroundStyle(W.cream)
+                    .font(DT.Typography.headline)
+                    .foregroundStyle(DT.Palette.textPrimary)
                     .lineLimit(1)
                 Text(PL.dayAndMonth(document.expiryDate))
-                    .font(.subheadline)
-                    .foregroundStyle(W.muted)
+                    .font(DT.Typography.subheadline)
+                    .foregroundStyle(DT.Palette.textSecondary)
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: DT.Space.xs)
             Text(DaysText.compact(to: document.expiryDate))
-                .font(.brico(15, .bold, relativeTo: .subheadline))
+                .font(DT.Typography.subheadlineEmphasized)
                 .monospacedDigit()
-                .foregroundStyle(days < 0 ? Palette.expired : days <= 7 ? Palette.soon : W.muted)
+                .foregroundStyle(days < 0 ? DT.Palette.danger : days <= 7 ? DT.Palette.warning : DT.Palette.textSecondary)
         }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 64)
+        .padding(.horizontal, DT.Space.md)
+        .frame(minHeight: DT.Size.row)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -545,10 +517,10 @@ struct WalletSectionTitle: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.brico(20, .bold, relativeTo: .title3))
-            .foregroundStyle(W.cream)
+            .font(DT.Typography.title3)
+            .foregroundStyle(DT.Palette.textPrimary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, DT.Space.xs)
             .accessibilityAddTraits(.isHeader)
     }
 }

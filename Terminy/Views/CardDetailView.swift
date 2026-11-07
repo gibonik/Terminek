@@ -25,17 +25,17 @@ struct CardDetailView: View {
                 .onTapGesture { router.close() }
 
             ScrollView {
-                VStack(spacing: 18) {
+                VStack(spacing: DT.Space.gutter) {
                     HStack {
                         RoundIconButton(symbol: "chevron.down", label: "Schowaj do portfela") { router.close() }
                         Spacer()
                         Button { router.edit(document) } label: {
                             Text("Edytuj")
-                                .font(.brico(16, .bold))
-                                .foregroundStyle(W.cream)
-                                .padding(.horizontal, 18)
-                                .frame(height: 44)
-                                .background(W.surfaceHi, in: Capsule())
+                                .font(DT.Typography.headline)
+                                .foregroundStyle(DT.Palette.textPrimary)
+                                .padding(.horizontal, DT.Space.gutter)
+                                .frame(height: DT.Size.touch)
+                                .background(DT.Palette.surfaceRaised, in: Capsule())
                         }
                         .buttonStyle(CardPressStyle())
                     }
@@ -56,7 +56,7 @@ struct CardDetailView: View {
                                 }
                         )
 
-                    VStack(spacing: 14) {
+                    VStack(spacing: DT.Space.md) {
                         countdown(days)
                             .riseIn(0)
 
@@ -81,10 +81,10 @@ struct CardDetailView: View {
                                 Image(uiImage: image)
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(maxHeight: 220)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .frame(maxHeight: DT.Size.cardHeight)
+                                    .clipShape(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous))
                                     .frame(maxWidth: .infinity)
-                                    .padding(12)
+                                    .padding(DT.Space.sm)
                                     .walletPanel()
                             }
                             .buttonStyle(CardPressStyle())
@@ -93,29 +93,29 @@ struct CardDetailView: View {
                         }
 
                         if !document.notes.isEmpty {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Notatki").font(.brico(13, .medium, relativeTo: .caption)).foregroundStyle(W.muted)
-                                Text(document.notes).font(.body).foregroundStyle(W.cream)
+                            VStack(alignment: .leading, spacing: DT.Space.xs) {
+                                Text("Notatki").font(DT.Typography.footnote).foregroundStyle(DT.Palette.textSecondary)
+                                Text(document.notes).font(DT.Typography.body).foregroundStyle(DT.Palette.textPrimary)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(16)
+                            .padding(DT.Space.md)
                             .walletPanel()
                             .riseIn(5)
                         }
 
                         Button { confirmDelete = true } label: {
                             Text("Wyjmij z portfela")
-                                .font(.brico(16, .bold))
-                                .foregroundStyle(Palette.expired)
-                                .frame(maxWidth: .infinity, minHeight: 52)
+                                .font(DT.Typography.headline)
+                                .foregroundStyle(DT.Palette.danger)
+                                .frame(maxWidth: .infinity, minHeight: DT.Size.row)
                         }
                         .riseIn(6)
                     }
                     .opacity(shown ? 1 : 0)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 8)
-                .padding(.bottom, 40)
+                .padding(.horizontal, DT.Space.gutter)
+                .padding(.top, DT.Space.xs)
+                .padding(.bottom, DT.Space.xxl)
             }
             .scrollIndicators(.hidden)
         }
@@ -136,25 +136,24 @@ struct CardDetailView: View {
 
     private func countdown(_ days: Int) -> some View {
         let head = DaysText.headline(to: document.expiryDate)
-        let color: Color = days < 0 ? Palette.expired : days <= 7 ? Palette.soon : W.cream
-        return VStack(alignment: .leading, spacing: 4) {
+        let color: Color = days < 0 ? DT.Palette.danger : days <= 7 ? DT.Palette.warning : DT.Palette.textPrimary
+        return VStack(alignment: .leading, spacing: DT.Space.xxs) {
             Text(days < 0 ? "Po terminie od" : days == 0 ? "Termin" : "Do terminu zostało")
-                .font(.brico(14, .medium, relativeTo: .subheadline))
-                .foregroundStyle(W.muted)
+                .font(DT.Typography.subheadline)
+                .foregroundStyle(DT.Palette.textSecondary)
             Text(days == 0 ? "Dziś" : head.big)
-                .font(.brico(40, .heavy, relativeTo: .largeTitle))
-                .tracking(-1)
+                .font(DT.Typography.largeTitle)
                 .foregroundStyle(color)
                 .contentTransition(.numericText())
             if let rest = head.rest, days != 0 {
                 Text("i " + rest)
-                    .font(.brico(17, .medium))
-                    .foregroundStyle(W.muted)
+                    .font(DT.Typography.body)
+                    .foregroundStyle(DT.Palette.textSecondary)
                     .contentTransition(.numericText())
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(18)
+        .padding(DT.Space.gutter)
         .walletPanel()
     }
 
@@ -180,11 +179,11 @@ struct CardDetailView: View {
     private var remindersPanel: some View {
         VStack(spacing: 0) {
             Toggle(isOn: $document.remindersEnabled) {
-                Text("Przypominaj o terminie").font(.brico(16, .bold)).foregroundStyle(W.cream)
+                Text("Przypominaj o terminie").font(DT.Typography.headline).foregroundStyle(DT.Palette.textPrimary)
             }
-            .tint(W.gold)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 56)
+            .tint(DT.Palette.accent)
+            .padding(.horizontal, DT.Space.md)
+            .frame(minHeight: DT.Size.row)
             if document.remindersEnabled {
                 divider
                 if let next = nextReminder {
@@ -199,22 +198,22 @@ struct CardDetailView: View {
     }
 
     private var divider: some View {
-        Rectangle().fill(W.stroke).frame(height: 1).padding(.leading, 16)
+        Rectangle().fill(DT.Palette.separator).frame(height: DT.Size.hairline).padding(.leading, DT.Space.md)
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(label).font(.subheadline).foregroundStyle(W.muted)
-            Spacer(minLength: 8)
+        HStack(alignment: .firstTextBaseline, spacing: DT.Space.sm) {
+            Text(label).font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+            Spacer(minLength: DT.Space.xs)
             Text(value)
-                .font(.brico(16, .bold))
-                .foregroundStyle(W.cream)
+                .font(DT.Typography.headline)
+                .foregroundStyle(DT.Palette.textPrimary)
                 .multilineTextAlignment(.trailing)
                 .contentTransition(.numericText())
                 .textSelection(.enabled)
         }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 52)
+        .padding(.horizontal, DT.Space.md)
+        .frame(minHeight: DT.Size.row)
         .accessibilityElement(children: .combine)
     }
 
@@ -300,11 +299,11 @@ struct RenewBurst: View {
                     piece.rotate(by: .radians(spark.spin * local))
                     let rect = CGRect(x: -side / 2, y: -side / 2, width: side, height: side * (spark.warm ? 1 : 2.2))
                     piece.fill(Path(roundedRect: rect, cornerRadius: side / 3),
-                               with: .color(spark.warm ? W.gold : W.cream))
+                               with: .color(spark.warm ? DT.Palette.accent : DT.Palette.textPrimary))
                 }
             }
         }
-        .frame(width: 900, height: 900)
+        .frame(width: DT.Size.cardHeight * 4, height: DT.Size.cardHeight * 4)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .onChange(of: trigger) {
@@ -325,7 +324,7 @@ struct ScanViewer: View {
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            Color.black.ignoresSafeArea()
+            DT.Palette.scrim.ignoresSafeArea()
             if let data, let image = UIImage(data: data) {
                 Image(uiImage: image)
                     .resizable()
@@ -336,7 +335,7 @@ struct ScanViewer: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             RoundIconButton(symbol: "xmark", label: "Zamknij") { dismiss() }
-                .padding(20)
+                .padding(DT.Space.gutter)
         }
     }
 }

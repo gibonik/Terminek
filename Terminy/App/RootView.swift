@@ -8,6 +8,7 @@ struct RootView: View {
     /// Automatyczny monit Face ID tylko po powrocie z tła. Samo okno Face ID przełącza
     /// scenę w .inactive → .active, więc bez tej flagi anulowanie zapętliłoby monit.
     @State private var cameFromBackground = true
+    @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system.rawValue
 
     var body: some View {
         ZStack {
@@ -18,8 +19,8 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .tint(Palette.tint)
-        .preferredColorScheme(.dark)
+        .tint(DT.Palette.accent)
+        .preferredColorScheme(AppAppearance(rawValue: appearance)?.colorScheme)
         .animation(.easeInOut(duration: 0.2), value: lock.isUnlocked)
         .onChange(of: scenePhase, initial: true) { _, phase in
             switch phase {
@@ -62,34 +63,34 @@ struct LockView: View {
     var body: some View {
         ZStack {
             WalletBackground()
-            VStack(spacing: 16) {
+            VStack(spacing: DT.Space.md) {
                 ZStack {
-                    Circle().strokeBorder(W.gold.opacity(0.35), lineWidth: 1.5)
-                        .frame(width: 120, height: 120)
+                    Circle().strokeBorder(DT.Palette.accent.opacity(0.35), lineWidth: DT.Size.hairline * 2)
+                        .frame(width: DT.Size.lockHalo, height: DT.Size.lockHalo)
                         .scaleEffect(pulse ? 1.15 : 0.95)
                         .opacity(pulse ? 0 : 1)
-                    Circle().fill(W.gold).frame(width: 92, height: 92)
+                    Circle().fill(DT.Palette.accent).frame(width: DT.Size.lockBadge, height: DT.Size.lockBadge)
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundStyle(W.goldInk)
+                        .font(DT.Typography.title2)
+                        .foregroundStyle(DT.Palette.onAccent)
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, DT.Space.xs)
                 Text("Portfel zamknięty")
-                    .font(.brico(28, .heavy, relativeTo: .title))
-                    .foregroundStyle(W.cream)
+                    .font(DT.Typography.title)
+                    .foregroundStyle(DT.Palette.textPrimary)
                 if let error = lock.lastError {
                     Text(error)
-                        .font(.subheadline)
-                        .foregroundStyle(W.muted)
+                        .font(DT.Typography.subheadline)
+                        .foregroundStyle(DT.Palette.textSecondary)
                         .multilineTextAlignment(.center)
                 }
                 GoldButton(title: "Otwórz (\(lock.biometryName))", symbol: "faceid") {
                     Task { await lock.unlock() }
                 }
-                .padding(.top, 14)
-                .padding(.horizontal, 40)
+                .padding(.top, DT.Space.md)
+                .padding(.horizontal, DT.Space.xxl)
             }
-            .padding(24)
+            .padding(DT.Space.lg)
         }
         .onAppear {
             withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }

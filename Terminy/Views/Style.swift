@@ -3,9 +3,7 @@ import UIKit
 
 // MARK: - Kolory
 //
-// Aplikacja korzysta z systemowych kolorów (tło, tekst, separatory), więc sama wygląda dobrze
-// w jasnym i ciemnym motywie oraz przy zwiększonym kontraście. Własne kolory to tylko
-// grupy dokumentów i stany terminu.
+// Wszystkie kolory są w `DesignTokens`. Tu zostaje tylko pomocniczy inicjalizator.
 
 extension Color {
     init(hex: UInt32) {
@@ -14,48 +12,6 @@ extension Color {
             green: Double((hex >> 8) & 0xFF) / 255,
             blue: Double(hex & 0xFF) / 255
         )
-    }
-
-    static func dynamic(_ light: UInt32, _ dark: UInt32) -> Color {
-        Color(uiColor: UIColor { trait in
-            let hex = trait.userInterfaceStyle == .dark ? dark : light
-            return UIColor(
-                red: CGFloat((hex >> 16) & 0xFF) / 255,
-                green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255,
-                alpha: 1
-            )
-        })
-    }
-}
-
-enum Palette {
-    /// Po terminie. Ciemniejsze niż systemowe w jasnym motywie, żeby tekst miał kontrast 4.5:1.
-    static let expired = Color(hex: 0xFF6B6B)
-    /// Do 7 dni.
-    static let soon = Color(hex: 0xFFB25C)
-    /// Kolor przewodni: mosiądz zapięcia portfela.
-    static let tint = Color(hex: 0xFFD68C)
-}
-
-/// Stan terminu do kolorowania tekstu „za ile”.
-enum Urgency {
-    case expired, soon, later
-
-    init(days: Int) {
-        switch days {
-        case ..<0: self = .expired
-        case 0...7: self = .soon
-        default: self = .later
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .expired: Palette.expired
-        case .soon: Palette.soon
-        case .later: .secondary
-        }
     }
 }
 
@@ -133,20 +89,20 @@ enum CategoryGroup: String, CaseIterable, Identifiable {
     /// Kolor karty dokumentu i kropki w kalendarzu.
     var color: Color {
         switch self {
-        case .auto: Color(hex: 0xF07A3A)
-        case .home: Color(hex: 0x4A90E2)
-        case .personal: Color(hex: 0x2BB08C)
-        case .subscriptions: Color(hex: 0xF2C230)
+        case .auto: DT.Palette.Card.auto
+        case .home: DT.Palette.Card.home
+        case .personal: DT.Palette.Card.personal
+        case .subscriptions: DT.Palette.Card.subscriptions
         }
     }
 
     /// Ciemny tekst na karcie w kolorze grupy.
     var ink: Color {
         switch self {
-        case .auto: Color(hex: 0x2B1305)
-        case .home: Color(hex: 0x061D38)
-        case .personal: Color(hex: 0x032A1F)
-        case .subscriptions: Color(hex: 0x2E2300)
+        case .auto: DT.Palette.Card.autoInk
+        case .home: DT.Palette.Card.homeInk
+        case .personal: DT.Palette.Card.personalInk
+        case .subscriptions: DT.Palette.Card.subscriptionsInk
         }
     }
 
@@ -369,74 +325,4 @@ extension UIImage {
             draw(in: CGRect(origin: .zero, size: newSize))
         }
     }
-}
-
-/// Liquid Glass na iOS 26, gdy aplikacja jest budowana nowym Xcode. Starszy Xcode i starszy iOS
-/// dostają zwykły wypełniony przycisk.
-struct PrimaryButtonStyle: ViewModifier {
-    func body(content: Content) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            content.buttonStyle(.glassProminent)
-        } else {
-            content.buttonStyle(.borderedProminent)
-        }
-        #else
-        content.buttonStyle(.borderedProminent)
-        #endif
-    }
-}
-
-extension View {
-    func primaryButton() -> some View { modifier(PrimaryButtonStyle()) }
-}
-
-/// Pływający element (komunikat) w Liquid Glass, a na starszym systemie w materiale.
-struct GlassCapsule: ViewModifier {
-    func body(content: Content) -> some View {
-        #if compiler(>=6.2)
-        if #available(iOS 26.0, *) {
-            content.glassEffect(.regular.interactive(), in: Capsule())
-        } else {
-            content.background(.regularMaterial, in: Capsule())
-                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-        }
-        #else
-        content.background(.regularMaterial, in: Capsule())
-            .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
-        #endif
-    }
-}
-
-/// Przejście „zoom” z wiersza do szczegółów (iOS 18+).
-struct ZoomSource: ViewModifier {
-    let id: UUID
-    let namespace: Namespace.ID
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.matchedTransitionSource(id: id, in: namespace)
-        } else {
-            content
-        }
-    }
-}
-
-struct ZoomDestination: ViewModifier {
-    let id: UUID
-    let namespace: Namespace.ID
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.navigationTransition(.zoom(sourceID: id, in: namespace))
-        } else {
-            content
-        }
-    }
-}
-
-extension View {
-    func glassCapsule() -> some View { modifier(GlassCapsule()) }
-    func zoomSource(_ id: UUID, in namespace: Namespace.ID) -> some View { modifier(ZoomSource(id: id, namespace: namespace)) }
-    func zoomDestination(_ id: UUID, in namespace: Namespace.ID) -> some View { modifier(ZoomDestination(id: id, namespace: namespace)) }
 }

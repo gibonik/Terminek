@@ -24,34 +24,33 @@ struct RemindersView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DT.Space.gutter) {
+                VStack(alignment: .leading, spacing: DT.Space.xxs) {
                     Text("Kiedy i o czym")
-                        .font(.brico(15, .medium, relativeTo: .subheadline))
-                        .foregroundStyle(W.muted)
+                        .font(DT.Typography.subheadline)
+                        .foregroundStyle(DT.Palette.textSecondary)
                     Text("Przypomnienia")
-                        .font(.brico(40, .heavy, relativeTo: .largeTitle))
-                        .tracking(-1.3)
+                        .font(DT.Typography.largeTitle)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DT.Space.xxs)
 
                 if status == .denied {
                     Button {
                         if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
                     } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "bell.slash.fill").font(.system(size: 18, weight: .semibold))
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Powiadomienia są wyłączone").font(.brico(16, .bold))
-                                Text("Stuknij, żeby włączyć je w Ustawieniach iPhone'a.").font(.footnote).opacity(0.9)
+                        HStack(spacing: DT.Space.sm) {
+                            Image(systemName: "bell.slash.fill").font(DT.Typography.icon)
+                            VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                                Text("Powiadomienia są wyłączone").font(DT.Typography.headline)
+                                Text("Stuknij, żeby włączyć je w Ustawieniach iPhone'a.").font(DT.Typography.footnote).opacity(0.9)
                             }
                             Spacer()
                         }
-                        .foregroundStyle(.white)
-                        .padding(16)
-                        .background(W.alert, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .foregroundStyle(DT.Palette.onDanger)
+                        .padding(DT.Space.md)
+                        .background(DT.Palette.dangerFill, in: RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous))
                     }
                     .buttonStyle(CardPressStyle())
                     .riseIn(0)
@@ -65,16 +64,16 @@ struct RemindersView: View {
                     toggle("W dniu terminu", isOn: $remind0)
                     divider
                     HStack {
-                        Text("Godzina").font(.brico(16, .bold))
+                        Text("Godzina").font(DT.Typography.headline)
                         Spacer()
                         Picker("Godzina", selection: $reminderHour) {
                             ForEach(6..<23, id: \.self) { Text(verbatim: "\($0):00").tag($0) }
                         }
                         .labelsHidden()
-                        .tint(W.gold)
+                        .tint(DT.Palette.accent)
                     }
-                    .padding(.horizontal, 16)
-                    .frame(minHeight: 56)
+                    .padding(.horizontal, DT.Space.md)
+                    .frame(minHeight: DT.Size.row)
                 }
                 .walletPanel()
                 .riseIn(1)
@@ -84,16 +83,16 @@ struct RemindersView: View {
                     let doc = documents.first { $0.daysLeft() >= 0 } ?? documents.first
                     Task { await NotificationScheduler.shared.sendTest(for: doc) }
                 } label: {
-                    HStack(spacing: 10) {
+                    HStack(spacing: DT.Space.sm) {
                         Image(systemName: "bell.badge.fill")
                             .symbolEffect(.bounce, value: testSent)
                         Text(testSent == 0 ? "Wyślij próbne powiadomienie" : "Wysłane, przyjdzie za 5 sekund")
-                            .font(.brico(16, .bold))
+                            .font(DT.Typography.headline)
                             .contentTransition(.opacity)
                     }
-                    .foregroundStyle(W.gold)
-                    .frame(maxWidth: .infinity, minHeight: 52)
-                    .walletPanel(radius: 18)
+                    .foregroundStyle(DT.Palette.accentText)
+                    .frame(maxWidth: .infinity, minHeight: DT.Size.row)
+                    .walletPanel()
                 }
                 .buttonStyle(CardPressStyle())
                 .riseIn(2)
@@ -102,10 +101,10 @@ struct RemindersView: View {
 
                 if upcoming.isEmpty {
                     Text(documents.isEmpty ? "Dodaj dokument, a tu pojawią się jego przypomnienia." : "Nie ma zaplanowanych przypomnień.")
-                        .font(.brico(16, .medium))
-                        .foregroundStyle(W.muted)
+                        .font(DT.Typography.body)
+                        .foregroundStyle(DT.Palette.textSecondary)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity, minHeight: 90)
+                        .frame(maxWidth: .infinity, minHeight: DT.Size.tile)
                         .walletPanel()
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
@@ -119,9 +118,9 @@ struct RemindersView: View {
                     }
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
-            .padding(.bottom, 120)
+            .padding(.horizontal, DT.Space.gutter)
+            .padding(.top, DT.Space.xs)
+            .padding(.bottom, DT.Space.dockClearance)
         }
         .scrollIndicators(.hidden)
         .onChange(of: "\(reminderHour)-\(remind30)-\(remind7)-\(remind0)") {
@@ -133,14 +132,14 @@ struct RemindersView: View {
     }
 
     private var divider: some View {
-        Rectangle().fill(W.stroke).frame(height: 1).padding(.leading, 16)
+        Rectangle().fill(DT.Palette.separator).frame(height: DT.Size.hairline).padding(.leading, DT.Space.md)
     }
 
     private func toggle(_ title: String, isOn: Binding<Bool>) -> some View {
-        Toggle(isOn: isOn) { Text(title).font(.brico(16, .bold)) }
-            .tint(W.gold)
-            .padding(.horizontal, 16)
-            .frame(minHeight: 56)
+        Toggle(isOn: isOn) { Text(title).font(DT.Typography.headline) }
+            .tint(DT.Palette.accent)
+            .padding(.horizontal, DT.Space.md)
+            .frame(minHeight: DT.Size.row)
     }
 }
 
@@ -152,35 +151,35 @@ struct TimelineRow: View {
     let isLast: Bool
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: DT.Space.md) {
             VStack(spacing: 0) {
-                Rectangle().fill(isFirst ? .clear : W.stroke).frame(width: 2, height: 18)
+                Rectangle().fill(isFirst ? .clear : DT.Palette.separator).frame(width: DT.Size.hairline * 2, height: DT.Space.gutter)
                 Circle()
-                    .fill(isFirst ? W.gold : (document?.group.color ?? W.cream))
-                    .frame(width: 12, height: 12)
-                    .overlay(Circle().strokeBorder(W.leather, lineWidth: 2))
-                Rectangle().fill(isLast ? .clear : W.stroke).frame(width: 2).frame(maxHeight: .infinity)
+                    .fill(isFirst ? DT.Palette.accent : (document?.group.color ?? DT.Palette.textPrimary))
+                    .frame(width: DT.Size.timelineDot, height: DT.Size.timelineDot)
+                    .overlay(Circle().strokeBorder(DT.Palette.background, lineWidth: DT.Size.hairline * 2))
+                Rectangle().fill(isLast ? .clear : DT.Palette.separator).frame(width: DT.Size.hairline * 2).frame(maxHeight: .infinity)
             }
-            .frame(width: 14)
+            .frame(width: DT.Size.timelineDot + DT.Space.xxs)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DT.Space.xs) {
                 Text(PL.dayAndMonth(reminder.fireDate) + ", " + reminder.fireDate.formatted(.dateTime.hour().minute().locale(PL.locale)))
-                    .font(.brico(13, .bold, relativeTo: .caption))
-                    .foregroundStyle(isFirst ? W.gold : W.muted)
-                HStack(spacing: 12) {
+                    .font(DT.Typography.footnoteEmphasized)
+                    .foregroundStyle(isFirst ? DT.Palette.accent : DT.Palette.textSecondary)
+                HStack(spacing: DT.Space.sm) {
                     if let document { MiniCard(category: document.category) }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(reminder.title).font(.brico(16, .bold)).foregroundStyle(W.cream)
-                        Text(reminder.body).font(.subheadline).foregroundStyle(W.muted)
+                    VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                        Text(reminder.title).font(DT.Typography.headline).foregroundStyle(DT.Palette.textPrimary)
+                        Text(reminder.body).font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .padding(14)
+                .padding(DT.Space.md)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .walletPanel(radius: 18)
+                .walletPanel()
             }
-            .padding(.top, 12)
-            .padding(.bottom, 4)
+            .padding(.top, DT.Space.sm)
+            .padding(.bottom, DT.Space.xxs)
         }
         .accessibilityElement(children: .combine)
     }

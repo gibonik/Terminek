@@ -21,33 +21,32 @@ struct CalendarScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: DT.Space.gutter) {
                 HStack(alignment: .bottom) {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DT.Space.xxs) {
                         Text(verbatim: String(cal.component(.year, from: month)))
-                            .font(.brico(15, .medium, relativeTo: .subheadline))
-                            .foregroundStyle(W.muted)
+                            .font(DT.Typography.subheadline)
+                            .foregroundStyle(DT.Palette.textSecondary)
                             .contentTransition(.numericText())
                         Text(PL.monthName(month))
-                            .font(.brico(44, .heavy, relativeTo: .largeTitle))
-                            .tracking(-1.5)
+                            .font(DT.Typography.largeTitle)
                             .contentTransition(.interpolate)
                     }
                     Spacer()
-                    HStack(spacing: 8) {
+                    HStack(spacing: DT.Space.xs) {
                         RoundIconButton(symbol: "chevron.left", label: "Poprzedni miesiąc") { step(-1) }
                         RoundIconButton(symbol: "chevron.right", label: "Następny miesiąc") { step(1) }
                     }
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DT.Space.xxs)
 
                 MonthGrid(month: month, documents: monthDocuments, selectedDay: $selectedDay)
                     .id(month)
                     .transition(.push(from: forward ? .trailing : .leading))
-                    .padding(12)
-                    .walletPanel(radius: 26)
+                    .padding(DT.Space.sm)
+                    .walletPanel()
                     .gesture(
-                        DragGesture(minimumDistance: 24).onEnded { value in
+                        DragGesture(minimumDistance: DT.Space.lg).onEnded { value in
                             guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
                             step(value.translation.width < 0 ? 1 : -1)
                         }
@@ -57,22 +56,22 @@ struct CalendarScreen: View {
                     WalletSectionTitle(text: listTitle)
                     if selectedDay != nil || !cal.isDate(month, equalTo: .now, toGranularity: .month) {
                         Button("Dziś") { show(.now) }
-                            .font(.brico(15, .bold))
-                            .foregroundStyle(W.gold)
-                            .frame(minHeight: 44)
+                            .font(DT.Typography.subheadlineEmphasized)
+                            .foregroundStyle(DT.Palette.accentText)
+                            .frame(minHeight: DT.Size.touch)
                     }
                 }
 
                 if listed.isEmpty {
                     Text(selectedDay == nil ? "W tym miesiącu nic się nie kończy." : "Tego dnia nic się nie kończy.")
-                        .font(.brico(16, .medium))
-                        .foregroundStyle(W.muted)
-                        .frame(maxWidth: .infinity, minHeight: 80)
+                        .font(DT.Typography.body)
+                        .foregroundStyle(DT.Palette.textSecondary)
+                        .frame(maxWidth: .infinity, minHeight: DT.Size.tile)
                         .walletPanel()
                 } else {
                     VStack(spacing: 0) {
                         ForEach(Array(listed.enumerated()), id: \.element.id) { index, doc in
-                            if index > 0 { Rectangle().fill(W.stroke).frame(height: 1).padding(.leading, 76) }
+                            if index > 0 { Rectangle().fill(DT.Palette.separator).frame(height: DT.Size.hairline).padding(.leading, DT.Space.md * 2 + DT.Size.miniCard.width) }
                             Button { router.tab = .home; router.open(doc) } label: {
                                 DocRow(document: doc)
                             }
@@ -83,9 +82,9 @@ struct CalendarScreen: View {
                     .walletPanel()
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 8)
-            .padding(.bottom, 120)
+            .padding(.horizontal, DT.Space.gutter)
+            .padding(.top, DT.Space.xs)
+            .padding(.bottom, DT.Space.dockClearance)
         }
         .scrollIndicators(.hidden)
         .sensoryFeedback(.selection, trigger: month)
@@ -140,23 +139,23 @@ struct MonthGrid: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: DT.Space.xs) {
             HStack(spacing: 0) {
                 ForEach(PL.weekdays, id: \.self) { day in
                     Text(day)
-                        .font(.brico(12, .medium, relativeTo: .caption))
-                        .foregroundStyle(W.faint)
+                        .font(DT.Typography.caption)
+                        .foregroundStyle(DT.Palette.textTertiary)
                         .frame(maxWidth: .infinity)
                 }
             }
             .accessibilityHidden(true)
 
-            LazyVGrid(columns: columns, spacing: 2) {
+            LazyVGrid(columns: columns, spacing: DT.Space.xxs) {
                 ForEach(Array(days.enumerated()), id: \.offset) { _, day in
                     if let day {
                         cell(day)
                     } else {
-                        Color.clear.frame(height: 50)
+                        Color.clear.frame(height: DT.Size.row)
                     }
                 }
             }
@@ -173,28 +172,28 @@ struct MonthGrid: View {
         return Button {
             withAnimation(.spring(duration: 0.35, bounce: 0.3)) { selectedDay = isSelected ? nil : day }
         } label: {
-            VStack(spacing: 4) {
+            VStack(spacing: DT.Space.xxs) {
                 Text(cal.component(.day, from: day).formatted())
-                    .font(.brico(17, isToday || isSelected ? .heavy : .medium))
+                    .font(isToday || isSelected ? DT.Typography.headline : DT.Typography.body)
                     .monospacedDigit()
-                    .foregroundStyle(isSelected ? W.goldInk : (isToday ? W.gold : (hasExpired ? Palette.expired : W.cream)))
-                    .frame(width: 38, height: 38)
+                    .foregroundStyle(isSelected ? DT.Palette.onAccent : (isToday ? DT.Palette.accent : (hasExpired ? DT.Palette.danger : DT.Palette.textPrimary)))
+                    .frame(width: DT.Size.dayCell, height: DT.Size.dayCell)
                     .background {
                         if isSelected {
-                            Circle().fill(W.gold)
+                            Circle().fill(DT.Palette.accent)
                                 .matchedGeometryEffect(id: "selected", in: selection)
                         } else if isToday {
-                            Circle().strokeBorder(W.gold, lineWidth: 1.5)
+                            Circle().strokeBorder(DT.Palette.accent, lineWidth: DT.Size.hairline * 2)
                         }
                     }
-                HStack(spacing: 3) {
+                HStack(spacing: DT.Space.xxs) {
                     ForEach(groups.prefix(3)) { group in
-                        Circle().fill(group.color).frame(width: 5, height: 5)
+                        Circle().fill(group.color).frame(width: DT.Size.dot, height: DT.Size.dot)
                     }
                 }
-                .frame(height: 5)
+                .frame(height: DT.Size.dot)
             }
-            .frame(maxWidth: .infinity, minHeight: 50)
+            .frame(maxWidth: .infinity, minHeight: DT.Size.row)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
