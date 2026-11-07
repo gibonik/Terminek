@@ -20,6 +20,9 @@ struct HomeView: View {
                     HeroBanner(document: next)
                         .zoomSource("hero-\(next.id)")
                         .riseIn(1)
+                    AskBar { router.assistantOpen = true }
+                        .padding(.horizontal, DT.Space.gutter)
+                        .riseIn(2)
                     StatsRow(documents: documents).riseIn(2)
                     carousel.riseIn(3)
                     rails
@@ -39,6 +42,12 @@ struct HomeView: View {
             router.runLaunchAction(firstDocument: next)
         }
         .onDisappear { Tilt.shared.stop() }
+        .sheet(isPresented: Binding(get: { router.assistantOpen }, set: { router.assistantOpen = $0 })) {
+            AssistantView()
+                .environment(router)
+                .presentationDragIndicator(.visible)
+                .presentationCornerRadius(DT.Radius.panel + DT.Space.md)
+        }
     }
 
     // MARK: Nagłówek
@@ -57,6 +66,7 @@ struct HomeView: View {
                                                     startPoint: .leading, endPoint: .trailing))
             }
             Spacer()
+            RoundIconButton(symbol: "sparkles", label: "Asystent") { router.assistantOpen = true }
             RoundIconButton(symbol: "magnifyingglass", label: "Szukaj") {
                 router.documentsSearch = true
                 router.tab = .wallet
@@ -442,5 +452,35 @@ struct CategoryTile: View {
         }
         .buttonStyle(CardPressStyle())
         .accessibilityLabel("Dodaj: \(category.title)")
+    }
+}
+
+/// Pole „Zapytaj asystenta” na starcie; otwiera czat.
+private struct AskBar: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DT.Space.sm) {
+                Image(systemName: "sparkles")
+                    .font(DT.Typography.headline)
+                    .foregroundStyle(LinearGradient(colors: [DT.Palette.accent, DT.Palette.accentAlt],
+                                                    startPoint: .topLeading, endPoint: .bottomTrailing))
+                Text("Zapytaj: kiedy OC? co wygasa w marcu?")
+                    .font(DT.Typography.subheadline)
+                    .foregroundStyle(DT.Palette.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(DT.Typography.title3)
+                    .foregroundStyle(DT.Palette.accent)
+            }
+            .padding(.horizontal, DT.Space.md)
+            .frame(minHeight: DT.Size.field)
+            .panelCapsule()
+        }
+        .buttonStyle(CardPressStyle())
+        .accessibilityLabel("Zapytaj asystenta")
     }
 }

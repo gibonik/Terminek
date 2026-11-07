@@ -57,6 +57,8 @@ final class AppRouter {
     var documentsGroup: CategoryGroup?
     /// Po przejściu do Dokumentów od razu otwórz wyszukiwanie.
     var documentsSearch = false
+    /// Czat z asystentem.
+    var assistantOpen = false
 
     /// Do zrzutów ekranu w CI: `-startTab home|wallet|calendar|account|detail|add`.
     private var launchAction: String?
@@ -121,6 +123,8 @@ final class AppRouter {
             add()
         case "reminders", "settings":
             tab = .account
+        case "assistant":
+            assistantOpen = true
         default:
             break
         }

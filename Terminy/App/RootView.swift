@@ -17,6 +17,10 @@ struct RootView: View {
             if lock.isEnabled && (!lock.isUnlocked || scenePhase != .active) {
                 LockView()
                     .transition(.opacity)
+            } else if scenePhase != .active && !TerminyApp.isDemo {
+                // Podgląd w przełączniku aplikacji nie pokazuje numerów ani skanów.
+                PrivacyCover()
+                    .transition(.opacity)
             }
         }
         .tint(DT.Palette.accent)
@@ -93,5 +97,17 @@ struct LockView: View {
         .onAppear {
             withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
         }
+    }
+}
+
+/// Zasłona na czas, gdy aplikacja nie jest na wierzchu (przełącznik aplikacji, Centrum sterowania).
+struct PrivacyCover: View {
+    var body: some View {
+        ZStack {
+            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
+            DT.Palette.background.opacity(0.6).ignoresSafeArea()
+            LogoMark(size: DT.Size.lockBadge)
+        }
+        .accessibilityHidden(true)
     }
 }
