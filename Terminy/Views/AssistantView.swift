@@ -13,12 +13,14 @@ struct AssistantView: View {
         let fromUser: Bool
         let text: String
         var documentIDs: [UUID] = []
+        var upsell = false
     }
 
     @State private var messages: [Message] = []
     @State private var draft = ""
     @State private var thinking = false
     @FocusState private var inputFocused: Bool
+    @State private var paywall: PaywallReason?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,6 +59,7 @@ struct AssistantView: View {
         }
         .background(AppBackground())
         .foregroundStyle(DT.Palette.textPrimary)
+        .sheet(item: $paywall) { reason in PaywallView(reason: reason) }
         .onAppear {
             if messages.isEmpty {
                 messages = [Message(fromUser: false, text: "Cześć! Zapytaj mnie o swoje terminy. Liczę wszystko na telefonie, nic nie wysyłam.")]
@@ -74,7 +77,7 @@ struct AssistantView: View {
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 0) {
                 Text("Asystent").font(DT.Typography.headline)
-                Text("Działa bez internetu").font(DT.Typography.caption).foregroundStyle(DT.Palette.textSecondary)
+                Text(subtitle).font(DT.Typography.caption).foregroundStyle(DT.Palette.textSecondary)
             }
             Spacer()
             RoundIconButton(symbol: "xmark", label: "Zamknij") { dismiss() }
@@ -116,6 +119,9 @@ struct AssistantView: View {
                     }
                     .background(DT.Palette.surfaceRaised, in: RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
                     .clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
+                }
+                if message.upsell {
+                    PrimaryButton(title: "Odblokuj Plus", symbol: "sparkles") { paywall = .assistant }
                 }
             }
             .padding(DT.Space.md)
@@ -188,6 +194,12 @@ struct AssistantView: View {
         .padding(.bottom, DT.Space.xs)
     }
 
+    private var subtitle: String {
+        let left = Store.shared.assistantQuestionsLeft()
+        guard left != Int.max else { return "Działa bez internetu" }
+        return left == 0 ? "Dziś bez darmowych pytań" : "Darmowe pytania dziś: \(left)"
+    }
+
     private var canSend: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !thinking }
 
     // MARK: Logika
@@ -201,6 +213,20 @@ struct AssistantView: View {
             messages.append(Message(fromUser: true, text: text))
             thinking = true
         }
+        let store = Store.shared
+        guard store.assistantQuestionsLeft() > 0 else {
+            Task {
+                try? await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 300))
+                withAnimation(DT.Motion.standard) {
+                    thinking = false
+                    messages.append(Message(fromUser: false,
+                                            text: "W darmowym planie możesz zadać \(Store.freeAssistantPerDay) pytania dziennie. Jutro limit się odnowi, a z Plus pytasz bez ograniczeń.",
+                                            upsell: true))
+                }
+            }
+            return
+        }
+        store.recordAssistantQuestion()
         let reply = Assistant().answer(text, documents: documents)
         Task {
             try? await Task.sleep(for: .milliseconds(reduceMotion ? 0 : 450))

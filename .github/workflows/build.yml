@@ -62,7 +62,7 @@ jobs:
           xcrun simctl status_bar "$DEST" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
           for look in light dark; do
             xcrun simctl ui "$DEST" appearance $look
-            for tab in home wallet detail add assistant calendar account; do
+            for tab in home wallet detail add assistant paywall calendar account; do
               xcrun simctl terminate "$DEST" pl.terminy.app || true
               xcrun simctl launch "$DEST" pl.terminy.app -demoData -startTab $tab
               sleep 5

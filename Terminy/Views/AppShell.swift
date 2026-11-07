@@ -59,6 +59,8 @@ final class AppRouter {
     var documentsSearch = false
     /// Czat z asystentem.
     var assistantOpen = false
+    /// Ekran Terminek Plus.
+    var paywall: PaywallReason?
 
     /// Do zrzutów ekranu w CI: `-startTab home|wallet|calendar|account|detail|add`.
     private var launchAction: String?
@@ -87,6 +89,12 @@ final class AppRouter {
     }
 
     func add(_ category: DocumentCategory? = nil, scan: Bool = false) {
+        let count = (try? TerminyApp.sharedContainer?.mainContext.fetchCount(FetchDescriptor<Document>())) ?? 0
+        guard Store.shared.canAddDocument(currentCount: count) else {
+            Haptics.shared.fire(.pull)
+            paywall = .documents
+            return
+        }
         editor = EditorRequest(document: nil, category: category, startScanning: scan)
     }
 
@@ -125,6 +133,8 @@ final class AppRouter {
             tab = .account
         case "assistant":
             assistantOpen = true
+        case "paywall":
+            paywall = .manual
         default:
             break
         }
@@ -225,6 +235,9 @@ struct MainTabView: View {
         .sheet(item: Binding(get: { router.opened == nil ? router.editor : nil }, set: { router.editor = $0 })) { request in
             DocumentEditView(request: request)
                 .environment(router)
+        }
+        .sheet(item: $router.paywall) { reason in
+            PaywallView(reason: reason)
         }
         .fullScreenCover(item: $router.opened) { doc in
             CardDetailView(document: doc)

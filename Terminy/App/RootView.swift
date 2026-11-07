@@ -24,6 +24,7 @@ struct RootView: View {
             }
         }
         .tint(DT.Palette.accent)
+        .task { Store.shared.start() }
         .preferredColorScheme(AppAppearance(rawValue: appearance)?.colorScheme)
         .animation(.easeInOut(duration: 0.2), value: lock.isUnlocked)
         .onChange(of: scenePhase, initial: true) { _, phase in

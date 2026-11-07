@@ -73,3 +73,27 @@ final class AssistantTests: XCTestCase {
         XCTAssertTrue(reply.text.contains("prawo jazdy"), reply.text)
     }
 }
+
+@MainActor
+final class FreePlanTests: XCTestCase {
+    func testDocumentAndAssistantLimits() {
+        let store = Store.shared
+        let wasDebug = store.debugPlus
+        defer { store.setDebugPlus(wasDebug) }
+        store.setDebugPlus(false)
+
+        XCTAssertTrue(store.canAddDocument(currentCount: 4))
+        XCTAssertFalse(store.canAddDocument(currentCount: 5))
+        XCTAssertEqual(store.maxScanPages, 1)
+
+        UserDefaults.standard.removeObject(forKey: "assistantDay")
+        XCTAssertEqual(store.assistantQuestionsLeft(), 3)
+        store.recordAssistantQuestion()
+        store.recordAssistantQuestion()
+        XCTAssertEqual(store.assistantQuestionsLeft(), 1)
+        UserDefaults.standard.removeObject(forKey: "assistantDay")
+
+        store.setDebugPlus(true)
+        XCTAssertTrue(store.canAddDocument(currentCount: 50))
+    }
+}

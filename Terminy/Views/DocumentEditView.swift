@@ -32,6 +32,7 @@ struct DocumentEditView: View {
     @State private var scanText = ""
     @State private var showingScanText = false
     @State private var photoItem: PhotosPickerItem?
+    @State private var paywall: PaywallReason?
 
     @State private var showingScanner = false
     @State private var showingCalendar = false
@@ -109,6 +110,9 @@ struct DocumentEditView: View {
         }
         .sheet(isPresented: $showingScanText) {
             ScanTextSheet(text: scanText)
+        }
+        .sheet(item: $paywall) { reason in
+            PaywallView(reason: reason)
         }
     }
 
@@ -372,7 +376,23 @@ struct DocumentEditView: View {
         .panel()
     }
 
+    @ViewBuilder
     private func galleryButton(append: Bool) -> some View {
+        if append && scanPages.count >= Store.shared.maxScanPages {
+            Button { paywall = .scanPages } label: {
+                Label("Dodaj zdjęcie", systemImage: "photo.on.rectangle")
+                    .font(DT.Typography.headline)
+                    .foregroundStyle(DT.Palette.accentText)
+                    .frame(maxWidth: .infinity, minHeight: DT.Size.field)
+                    .background(DT.Palette.surfaceRaised, in: Capsule())
+            }
+            .buttonStyle(CardPressStyle())
+        } else {
+            galleryPicker(append: append)
+        }
+    }
+
+    private func galleryPicker(append: Bool) -> some View {
         PhotosPicker(selection: $photoItem, matching: .images) {
             Label(append ? "Dodaj zdjęcie" : "Z galerii", systemImage: "photo.on.rectangle")
                 .font(DT.Typography.headline)
@@ -387,6 +407,10 @@ struct DocumentEditView: View {
 
     private func scanButton(_ title: String, symbol: String, append: Bool) -> some View {
         Button {
+            if append && scanPages.count >= Store.shared.maxScanPages {
+                paywall = .scanPages
+                return
+            }
             appendingScan = append
             if !append && !DocumentScanner.isSupported {
                 withAnimation(.snappy) { scanPages = []; scanChanged = true; scanText = ""; ocrMessage = nil }
@@ -509,7 +533,11 @@ struct DocumentEditView: View {
         guard !images.isEmpty else { return }
         let appending = appendingScan
         appendingScan = false
-        let prepared = images.map { $0.downscaled(maxDimension: ScanStore.pageDimension) }
+        var prepared = images.map { $0.downscaled(maxDimension: ScanStore.pageDimension) }
+        let room = max(0, Store.shared.maxScanPages - (appending ? scanPages.count : 0))
+        let trimmed = prepared.count > room
+        if trimmed { prepared = Array(prepared.prefix(room)) }
+        guard !prepared.isEmpty else { paywall = .scanPages; return }
         withAnimation(.snappy) {
             scanPages = appending ? scanPages + prepared : prepared
             scanChanged = true
@@ -562,6 +590,9 @@ struct DocumentEditView: View {
             }
         }
         if !read.isEmpty { Haptics.shared.fire(.stamp) }
+        if trimmed {
+            ocrMessage = (ocrMessage.map { $0 + " " } ?? "") + "Zapisałem pierwszą stronę, więcej stron jest w Plus."
+        }
     }
 
     /// „a, b i c”.

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import StoreKit
 
 /// Konto: przypomnienia (kiedy i o czym), oś najbliższych powiadomień, wygląd i bezpieczeństwo.
 struct AccountView: View {
@@ -17,6 +18,10 @@ struct AccountView: View {
     @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system.rawValue
     @State private var status: UNAuthorizationStatus = .notDetermined
     @State private var testSent = 0
+    @State private var paywall: PaywallReason?
+    @State private var manageSubscriptions = false
+    @State private var versionTaps = 0
+    @AppStorage(Store.developerMenuKey) private var developerMenu = false
     @Namespace private var themePill
 
     private var upcoming: [NotificationScheduler.PlannedReminder] {
@@ -33,6 +38,8 @@ struct AccountView: View {
                 Text("Konto").font(DT.Typography.largeTitle).riseIn(0)
 
                 profileCard.riseIn(1)
+
+                plusCard.riseIn(1)
 
                 if status == .denied { deniedBanner.riseIn(2) }
 
@@ -106,10 +113,55 @@ struct AccountView: View {
                     .frame(minHeight: DT.Size.toggleRow)
                 }
 
+                if developerMenu {
+                    group("Menu deweloperskie", index: 6) {
+                        toggle("hammer", "Plus testowy (bez płatności)", isOn: Binding(
+                            get: { Store.shared.debugPlus }, set: { Store.shared.setDebugPlus($0) }))
+                        divider
+                        Button {
+                            UserDefaults.standard.removeObject(forKey: "assistantDay")
+                            Haptics.shared.fire(.stamp)
+                        } label: {
+                            HStack(spacing: DT.Space.sm) {
+                                icon("sparkles")
+                                Text("Wyzeruj pytania do asystenta").font(DT.Typography.body).foregroundStyle(DT.Palette.textPrimary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DT.Space.md)
+                            .frame(minHeight: DT.Size.toggleRow)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        divider
+                        Button {
+                            developerMenu = false
+                            versionTaps = 0
+                        } label: {
+                            HStack(spacing: DT.Space.sm) {
+                                icon("eye.slash")
+                                Text("Ukryj menu").font(DT.Typography.body).foregroundStyle(DT.Palette.textPrimary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, DT.Space.md)
+                            .frame(minHeight: DT.Size.toggleRow)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
                 Text("Terminek · wersja \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
                     .font(DT.Typography.footnote)
                     .foregroundStyle(DT.Palette.textTertiary)
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: DT.Size.touch)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        versionTaps += 1
+                        if versionTaps >= 7 && !developerMenu {
+                            developerMenu = true
+                            Haptics.shared.fire(.renew)
+                        }
+                    }
                     .riseIn(6)
             }
             .padding(.horizontal, DT.Space.gutter)
@@ -152,6 +204,55 @@ struct AccountView: View {
         .background { LiveGradient(colors: [DT.Palette.accent, DT.Palette.accentAlt]) }
         .clipShape(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous))
         .shadow(color: DT.Palette.accent.opacity(0.35), radius: DT.Space.lg, y: DT.Space.sm)
+    }
+
+    private var plusCard: some View {
+        let store = Store.shared
+        return VStack(alignment: .leading, spacing: DT.Space.sm) {
+            HStack(spacing: DT.Space.sm) {
+                Image(systemName: "sparkles")
+                    .font(DT.Typography.subheadlineEmphasized)
+                    .foregroundStyle(DT.Palette.onAccent)
+                    .frame(width: DT.Size.iconBadge, height: DT.Size.iconBadge)
+                    .background(DT.Palette.accent, in: Circle())
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(store.isPlus ? "Terminek Plus" : "Darmowy plan").font(DT.Typography.headline)
+                    Text(store.isPlus
+                         ? (store.debugPlus && store.purchased.isEmpty ? "Włączony testowo" : store.hasLifetime ? "Na zawsze" : "Aktywny")
+                         : "Dokumenty: \(min(documents.count, Store.freeDocuments)) z \(Store.freeDocuments)")
+                        .font(DT.Typography.footnote)
+                        .foregroundStyle(DT.Palette.textSecondary)
+                }
+                Spacer()
+                if !store.isPlus {
+                    Button("Odblokuj") { paywall = .manual }
+                        .font(DT.Typography.subheadlineEmphasized)
+                        .foregroundStyle(DT.Palette.onAccent)
+                        .padding(.horizontal, DT.Space.md)
+                        .frame(minHeight: DT.Size.pill)
+                        .background(DT.Palette.accent, in: Capsule())
+                }
+            }
+            if !store.isPlus {
+                ProgressView(value: Double(min(documents.count, Store.freeDocuments)), total: Double(Store.freeDocuments))
+                    .tint(documents.count >= Store.freeDocuments ? DT.Palette.warning : DT.Palette.accent)
+            }
+            HStack(spacing: DT.Space.md) {
+                Button("Przywróć zakupy") { Task { await store.restore() } }
+                if !store.purchased.isEmpty && !store.hasLifetime {
+                    Button("Zarządzaj subskrypcją") { manageSubscriptions = true }
+                }
+            }
+            .font(DT.Typography.footnoteEmphasized)
+            .foregroundStyle(DT.Palette.accentText)
+            if let message = store.message {
+                Text(message).font(DT.Typography.footnote).foregroundStyle(DT.Palette.textSecondary)
+            }
+        }
+        .padding(DT.Space.md)
+        .panel()
+        .sheet(item: $paywall) { reason in PaywallView(reason: reason) }
+        .manageSubscriptionsSheet(isPresented: $manageSubscriptions)
     }
 
     private var deniedBanner: some View {
