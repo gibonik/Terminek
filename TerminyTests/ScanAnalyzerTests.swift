@@ -127,6 +127,26 @@ final class ScanAnalyzerTests: XCTestCase {
         XCTAssertEqual(ymd(e.bestExpiryDate(in: "Expiry 05 LIS/NOV 2029", now: now)), "2029-11-05")
     }
 
+    func testIDCardBackUsesMRZNotIssueDate() {
+        // Tył dowodu: data wydania pod etykietą, ważność tylko w MRZ (z „K” zamiast „<” po OCR).
+        let text = """
+        DATA WYDANIA / DATE OF ISSUE
+        03.02.2019
+        IDUTOD231458907KKKKKKKKKKKKKKK
+        7408122F2902153UTOKKKKKKKKKKK2
+        ERIKSSON<<ANNA<MARIA<<<<<<<<<<
+        """
+        let result = ScanAnalyzer().analyze(text, now: now)
+        XCTAssertEqual(result.category, .idCard)
+        XCTAssertEqual(ymd(result.expiry), "2029-02-15")
+        XCTAssertEqual(result.number, "D23145890")
+    }
+
+    func testIssueDateAloneIsNotExpiry() {
+        let text = "DATA WYDANIA / DATE OF ISSUE\n03.02.2019"
+        XCTAssertNil(ScanAnalyzer().analyze(text, knownCategory: .idCard, now: now).expiry)
+    }
+
     func testPolishPagePlurals() {
         XCTAssertEqual(PL.pages(1), "1 strona")
         XCTAssertEqual(PL.pages(3), "3 strony")

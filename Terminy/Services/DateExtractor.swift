@@ -14,6 +14,11 @@ struct DateExtractor {
         "następne badanie", "nastepne badanie", "następnego badania", "data następnego"
     ]
 
+    /// Daty przy tych słowach to na pewno nie ważność: wydanie, urodzenie, wystawienie.
+    static let otherDateKeywords = [
+        "wydan", "issue", "urodz", "birth", "wystaw", "zawarcia", "podpis", "sprzedaż", "sprzedaz"
+    ]
+
     var calendar: Calendar = {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = .current
@@ -45,6 +50,11 @@ struct DateExtractor {
             let previous = index > 0 ? lines[index - 1].lowercased() : ""
             let hasKeyword = Self.keywords.contains { lower.contains($0) }
             let keywordAbove = Self.keywords.contains { previous.contains($0) }
+            let otherHere = Self.otherDateKeywords.contains { lower.contains($0) }
+            let otherAbove = Self.otherDateKeywords.contains { previous.contains($0) }
+            // „Data wydania 03.02.2019” albo etykieta „DATA WYDANIA” nad samą datą.
+            if otherHere && !hasKeyword { continue }
+            if otherAbove && !hasKeyword && !keywordAbove { continue }
 
             let datesInLine = dates(in: line)
             for (position, date) in datesInLine.enumerated() {

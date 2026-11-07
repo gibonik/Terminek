@@ -39,7 +39,7 @@ struct MRZParser {
         let lines = text
             .components(separatedBy: .newlines)
             .map(Self.normalize)
-            .filter { $0.count >= 28 && $0.contains("<") }
+            .filter { $0.count >= 27 && $0.contains("<") }
 
         for i in lines.indices {
             if i + 1 < lines.count, let line1 = Self.fit(lines[i], 44), let line2 = Self.fit(lines[i + 1], 44),
@@ -106,19 +106,33 @@ struct MRZParser {
     }
 
     static func normalize(_ line: String) -> String {
-        line.uppercased()
+        var text = line.uppercased()
             .replacingOccurrences(of: "«", with: "<<")
+            .replacingOccurrences(of: "»", with: "<<")
             .replacingOccurrences(of: "‹", with: "<")
+            .replacingOccurrences(of: "〈", with: "<")
+            .replacingOccurrences(of: "く", with: "<")
             .filter { !$0.isWhitespace }
+        // OCR często czyta ciąg „<<<<” jako „KKKK”, „CCCC” albo ich mieszankę.
+        if let regex = try? NSRegularExpression(pattern: "[<KC]{4,}") {
+            let ns = text as NSString
+            for match in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)).reversed() {
+                let run = ns.substring(with: match.range)
+                guard run.contains("<") || run.count >= 6 else { continue }
+                text = (text as NSString).replacingCharacters(in: match.range, with: String(repeating: "<", count: run.count))
+            }
+        }
+        return text
     }
 
     /// OCR potrafi zgubić albo dodać znak wypełnienia na końcu wiersza.
     static func fit(_ line: String, _ length: Int) -> [Character]? {
-        guard abs(line.count - length) <= 1,
+        guard abs(line.count - length) <= 2,
               line.allSatisfy({ $0 == "<" || $0.isASCII && ($0.isLetter || $0.isNumber) })
         else { return nil }
         var chars = Array(line)
-        if chars.count > length { chars.removeLast() }
+        while chars.count > length, chars.last == "<" { chars.removeLast() }
+        guard chars.count <= length else { return nil }
         while chars.count < length { chars.append("<") }
         return chars
     }
