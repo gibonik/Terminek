@@ -80,29 +80,6 @@ schemes:
     build:
       targets:
         Terminy: all
-        TerminyWidget:
-    type: app-extension
-    platform: iOS
-    sources:
-      - TerminyWidget
-      - Shared
-      - Terminy/Models
-      - Terminy/Views/DesignTokens.swift
-      - Terminy/Views/Style.swift
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: pl.terminy.app.widget
-        CODE_SIGN_ENTITLEMENTS: TerminyWidget/TerminyWidget.entitlements
-        TARGETED_DEVICE_FAMILY: "1"
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Terminek
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
-        SKIP_INSTALL: YES
-    info:
-      path: TerminyWidget/Info.plist
-      properties:
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
-  TerminyTests: [test]
+        TerminyTests: [test]
     test:
       targets: [TerminyTests]
