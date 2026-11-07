@@ -91,4 +91,15 @@ final class CategoryGroupTests: XCTestCase {
         XCTAssertEqual(DaysText.short(-2), "2 dni po")
         XCTAssertEqual(DaysText.short(6), "6 dni")
     }
+
+    func testLongCountdownInYearsMonthsDays() {
+        let cal = Calendar.current
+        let now = DateComponents(calendar: cal, year: 2026, month: 11, day: 7).date!
+        let date = DateComponents(calendar: cal, year: 2029, month: 2, day: 12).date!
+        XCTAssertEqual(DaysText.long(to: date, from: now), "2 lata, 3 miesiące i 5 dni")
+        XCTAssertEqual(DaysText.headline(to: date, from: now).big, "2 lata")
+        XCTAssertEqual(DaysText.compact(to: date, from: now), "2 l. 3 mies.")
+        let soon = DateComponents(calendar: cal, year: 2026, month: 11, day: 13).date!
+        XCTAssertEqual(DaysText.compact(to: soon, from: now), "6 dni")
+    }
 }

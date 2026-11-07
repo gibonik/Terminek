@@ -196,7 +196,7 @@ private struct CalendarRow: View {
             }
             .foregroundStyle(Palette.ink)
             Spacer(minLength: 8)
-            DaysChip(days: document.daysLeft(), size: 12)
+            DaysChip(document: document, size: 12)
         }
         .padding(12)
         .background(Palette.panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))

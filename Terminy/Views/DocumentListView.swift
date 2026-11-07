@@ -87,13 +87,8 @@ struct DocumentListView: View {
         .background(Palette.bg.ignoresSafeArea())
         .onAppear(perform: applyFocusRequest)
         .onChange(of: router.focusSearch) { applyFocusRequest() }
-        .confirmationDialog("Usunąć „\(toDelete?.displayTitle ?? "")”?",
-                            isPresented: Binding(get: { toDelete != nil }, set: { if !$0 { toDelete = nil } }),
-                            titleVisibility: .visible) {
-            Button("Usuń", role: .destructive) {
-                if let toDelete { withAnimation { context.delete(toDelete) } }
-                toDelete = nil
-            }
+        .sheet(item: $toDelete) { doc in
+            ConfirmDeleteSheet(document: doc)
         }
     }
 
@@ -204,7 +199,7 @@ struct DocumentRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            DaysChip(days: document.daysLeft(), size: 12)
+            DaysChip(document: document, size: 12)
         }
         .padding(12)
         .background(Palette.panel, in: RoundedRectangle(cornerRadius: 20, style: .continuous))

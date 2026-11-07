@@ -31,7 +31,18 @@ struct DocumentSheet: View {
                         .font(.system(size: 24, weight: .heavy)).tracking(-0.6)
                     Text(bigDays(days))
                         .font(.system(size: 44, weight: .heavy).monospacedDigit()).tracking(-2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
                         .contentTransition(.numericText())
+                    if days > 1, let rest = DaysText.headline(to: document.expiryDate).rest {
+                        Text("i jeszcze " + rest)
+                            .font(.system(size: 18, weight: .heavy)).tracking(-0.3)
+                            .contentTransition(.numericText())
+                    }
+                    if days > 31 {
+                        Text("razem \(days) dni")
+                            .font(.system(size: 12, weight: .bold)).opacity(0.7)
+                    }
                     Text((days < 0 ? "Termin minął " : "Ważne do ") + PL.date(document.expiryDate))
                         .font(.system(size: 13, weight: .semibold)).opacity(0.8)
                         .contentTransition(.numericText())
@@ -80,36 +91,69 @@ struct DocumentSheet: View {
                     .buttonStyle(PressScaleStyle(scale: 0.98))
                 }
 
-                HStack(spacing: 8) {
-                    Menu {
-                        Button { router.edit(document) } label: { Label("Edytuj", systemImage: "pencil") }
-                        Button(role: .destructive) { confirmDelete = true } label: { Label("Usuń", systemImage: "trash") }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 18, weight: .heavy))
-                            .foregroundStyle(Palette.ink)
-                            .frame(width: 52, height: 52)
-                            .background(Palette.tile, in: Circle())
+                if confirmDelete {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Usunąć „\(document.displayTitle)”?")
+                            .font(.system(size: 16, weight: .heavy))
+                        Text("Znikną też przypomnienia i skan. Tego nie da się cofnąć.")
+                            .font(.system(size: 13, weight: .semibold)).opacity(0.85)
+                        HStack(spacing: 8) {
+                            Button {
+                                withAnimation(.spring(duration: 0.35)) { confirmDelete = false }
+                            } label: {
+                                Text("Zostaw")
+                                    .font(.system(size: 15, weight: .heavy))
+                                    .foregroundStyle(Palette.ink)
+                                    .frame(maxWidth: .infinity).frame(height: 48)
+                                    .background(Palette.panel, in: Capsule())
+                            }
+                            Button {
+                                dismiss()
+                                context.delete(document)
+                            } label: {
+                                Label("Usuń", systemImage: "trash.fill")
+                                    .font(.system(size: 15, weight: .heavy))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity).frame(height: 48)
+                                    .background(Palette.alert, in: Capsule())
+                            }
+                        }
+                        .buttonStyle(PressScaleStyle())
                     }
-                    .accessibilityLabel("Więcej")
+                    .foregroundStyle(Palette.ink)
+                    .padding(14)
+                    .background(Palette.alert.opacity(0.14), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                } else {
+                    HStack(spacing: 8) {
+                        Button {
+                            withAnimation(.spring(duration: 0.35)) { confirmDelete = true }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 17, weight: .heavy))
+                                .foregroundStyle(Palette.alert)
+                                .frame(width: 52, height: 52)
+                                .background(Palette.tile, in: Circle())
+                        }
+                        .accessibilityLabel("Usuń")
 
-                    Button { router.edit(document) } label: {
-                        Text("Edytuj")
-                            .font(.system(size: 15, weight: .heavy))
-                            .foregroundStyle(Palette.ink)
-                            .padding(.horizontal, 20)
-                            .frame(height: 52)
-                            .background(Palette.tile, in: Capsule())
-                    }
-                    .buttonStyle(PressScaleStyle())
+                        Button { router.edit(document) } label: {
+                            Label("Edytuj", systemImage: "pencil")
+                                .font(.system(size: 15, weight: .heavy))
+                                .foregroundStyle(Palette.ink)
+                                .padding(.horizontal, 18)
+                                .frame(height: 52)
+                                .background(Palette.tile, in: Capsule())
+                        }
 
-                    Button(action: renew) {
-                        Label("Odnowione", systemImage: "checkmark")
-                            .font(.system(size: 15, weight: .heavy))
-                            .foregroundStyle(Palette.bg)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 52)
-                            .background(Palette.ink, in: Capsule())
+                        Button(action: renew) {
+                            Label("Odnowione", systemImage: "checkmark")
+                                .font(.system(size: 15, weight: .heavy))
+                                .foregroundStyle(Palette.bg)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 52)
+                                .background(Palette.ink, in: Capsule())
+                        }
                     }
                     .buttonStyle(PressScaleStyle())
                 }
@@ -128,12 +172,6 @@ struct DocumentSheet: View {
         .presentationCornerRadius(34)
         .presentationBackground(Palette.panel)
         .sensoryFeedback(.success, trigger: renewTick)
-        .confirmationDialog("Usunąć ten dokument?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Usuń", role: .destructive) {
-                dismiss()
-                context.delete(document)
-            }
-        }
         .fullScreenCover(isPresented: $showScan) {
             ScanPreview(data: document.scanImageData)
         }
@@ -153,7 +191,7 @@ struct DocumentSheet: View {
         case ..<0: "\(-days) \(DaysText.dni(-days)) po"
         case 0: "Dziś"
         case 1: "Jutro"
-        default: DaysText.short(days)
+        default: DaysText.headline(to: document.expiryDate).big
         }
     }
 
@@ -251,18 +289,90 @@ struct AddDocumentSheet: View {
     }
 }
 
-struct ScanPreview: View {
-    let data: Data?
+/// Własne okienko potwierdzenia usunięcia (zamiast systemowego).
+struct ConfirmDeleteSheet: View {
+    let document: Document
+    @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let data, let image = UIImage(data: data) {
-                    Image(uiImage: image).resizable().scaledToFit()
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 18, weight: .heavy))
+                    .foregroundStyle(.white)
+                    .frame(width: 46, height: 46)
+                    .background(Palette.alert, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Usunąć „\(document.displayTitle)”?")
+                        .font(.system(size: 18, weight: .heavy))
+                        .lineLimit(2)
+                    Text("Znikną też przypomnienia i skan.")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Palette.muted)
                 }
             }
-            .toolbar { Button("Zamknij") { dismiss() } }
+            .foregroundStyle(Palette.ink)
+
+            HStack(spacing: 8) {
+                Button { dismiss() } label: {
+                    Text("Zostaw")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(Palette.ink)
+                        .frame(maxWidth: .infinity).frame(height: 52)
+                        .background(Palette.tile, in: Capsule())
+                }
+                Button {
+                    dismiss()
+                    withAnimation { context.delete(document) }
+                } label: {
+                    Text("Usuń")
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity).frame(height: 52)
+                        .background(Palette.alert, in: Capsule())
+                }
+            }
+            .buttonStyle(PressScaleStyle())
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 26)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(210)])
+        .presentationDragIndicator(.visible)
+        .presentationCornerRadius(34)
+        .presentationBackground(Palette.panel)
+    }
+}
+
+struct ScanPreview: View {
+    let data: Data?
+    @Environment(\.dismiss) private var dismiss
+    @State private var scale: CGFloat = 1
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+            if let data, let image = UIImage(data: data) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .scaleEffect(scale)
+                    .gesture(MagnifyGesture()
+                        .onChanged { scale = max(1, $0.magnification) }
+                        .onEnded { _ in withAnimation(.spring) { scale = 1 } })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .heavy))
+                    .foregroundStyle(.black)
+                    .frame(width: 44, height: 44)
+                    .background(.white, in: Circle())
+            }
+            .buttonStyle(PressScaleStyle())
+            .padding(16)
+            .accessibilityLabel("Zamknij")
         }
     }
 }

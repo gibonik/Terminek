@@ -203,6 +203,62 @@ enum DaysText {
 
     static func dni(_ n: Int) -> String { n == 1 ? "dzień" : "dni" }
 
+    static func miesiace(_ n: Int) -> String {
+        if n == 1 { return "miesiąc" }
+        let tens = n % 100, ones = n % 10
+        return (2...4).contains(ones) && !(12...14).contains(tens) ? "miesiące" : "miesięcy"
+    }
+
+    /// Lata, miesiące i dni między dziś a terminem (zawsze dodatnie).
+    static func components(to date: Date, from now: Date = .now,
+                           calendar: Calendar = .current) -> (years: Int, months: Int, days: Int) {
+        let a = calendar.startOfDay(for: now), b = calendar.startOfDay(for: date)
+        let c = calendar.dateComponents([.year, .month, .day], from: min(a, b), to: max(a, b))
+        return (c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    private static func longParts(to date: Date, from now: Date) -> [String] {
+        let c = components(to: date, from: now)
+        var parts: [String] = []
+        if c.years > 0 { parts.append("\(c.years) \(lata(c.years))") }
+        if c.months > 0 { parts.append("\(c.months) \(miesiace(c.months))") }
+        if c.days > 0 { parts.append("\(c.days) \(dni(c.days))") }
+        return parts
+    }
+
+    private static func joined(_ parts: [String]) -> String {
+        guard parts.count > 1 else { return parts.first ?? "" }
+        return parts.dropLast().joined(separator: ", ") + " i " + parts[parts.count - 1]
+    }
+
+    /// „2 lata, 3 miesiące i 5 dni”.
+    static func long(to date: Date, from now: Date = .now) -> String {
+        let parts = longParts(to: date, from: now)
+        return parts.isEmpty ? "dziś" : joined(parts)
+    }
+
+    /// Duży napis + reszta: („2 lata”, „3 miesiące i 5 dni”).
+    static func headline(to date: Date, from now: Date = .now) -> (big: String, rest: String?) {
+        let parts = longParts(to: date, from: now)
+        guard let first = parts.first else { return ("Dziś", nil) }
+        let rest = Array(parts.dropFirst())
+        return (first, rest.isEmpty ? nil : joined(rest))
+    }
+
+    /// Krótko na plakietkę: do 60 dni w dniach, dalej „2 l. 3 mies.”.
+    static func compact(to date: Date, from now: Date = .now, calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                           to: calendar.startOfDay(for: date)).day ?? 0
+        if abs(days) <= 60 { return short(days) }
+        let c = components(to: date, from: now, calendar: calendar)
+        var parts: [String] = []
+        if c.years > 0 { parts.append("\(c.years) l.") }
+        if c.months > 0 { parts.append("\(c.months) mies.") }
+        if c.years == 0 && c.days > 0 { parts.append("\(c.days) d.") }
+        let text = parts.joined(separator: " ")
+        return days < 0 ? text + " po" : text
+    }
+
     static func lata(_ n: Int) -> String {
         if n == 1 { return "rok" }
         let tens = n % 100, ones = n % 10
@@ -215,12 +271,20 @@ enum DaysText {
 /// Plakietka z liczbą dni. Czerwona po terminie, czarna do 7 dni.
 struct DaysChip: View {
     let days: Int
+    let text: String
     /// Kolor tekstu, gdy plakietka leży na kolorowej karcie. `nil` = na zwykłym panelu.
     var onCardInk: Color?
     var size: CGFloat = 11
 
+    init(document: Document, onCardInk: Color? = nil, size: CGFloat = 11) {
+        self.days = document.daysLeft()
+        self.text = DaysText.compact(to: document.expiryDate)
+        self.onCardInk = onCardInk
+        self.size = size
+    }
+
     var body: some View {
-        Text(DaysText.short(days))
+        Text(text)
             .font(.system(size: size, weight: .heavy).monospacedDigit())
             .lineLimit(1)
             .padding(.horizontal, size * 0.7)

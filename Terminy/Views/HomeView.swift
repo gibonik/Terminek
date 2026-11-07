@@ -239,9 +239,10 @@ private struct HeroTile: View {
             Text(document.displayTitle)
                 .font(.system(size: 16, weight: .heavy)).tracking(-0.3)
                 .lineLimit(1)
-            Text(document.cardSubtitle)
+            Text(days > 30 ? DaysText.long(to: document.expiryDate) : document.cardSubtitle)
                 .font(.system(size: 12, weight: .semibold)).opacity(0.75)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .padding(.bottom, 8)
             Button(action: onRenew) {
                 Label("Odnowione", systemImage: "checkmark")
@@ -419,7 +420,7 @@ struct StackCard: View {
                     .font(.system(size: 14, weight: .heavy))
                     .lineLimit(1)
                 Spacer(minLength: 2)
-                DaysChip(days: document.daysLeft(), onCardInk: group.ink)
+                DaysChip(document: document, onCardInk: group.ink)
             }
             Spacer(minLength: 0)
             HStack(spacing: 6) {
@@ -443,52 +444,97 @@ struct StackCard: View {
 
 // MARK: - Pusty pulpit
 
+/// Dla nowych użytkowników: jeden duży kafel „Dodaj dokument”.
 private struct EmptyHome: View {
     @Environment(AppRouter.self) private var router
+    @State private var pulse = false
+
+    private let examples: [(String, CategoryGroup)] = [
+        ("OC auta", .auto), ("Paszport", .personal), ("Netflix", .subscriptions),
+        ("Przegląd", .auto), ("Polisa domu", .home), ("Dowód", .personal),
+    ]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Dodaj pierwszy dokument")
-                .font(.system(size: 22, weight: .heavy)).tracking(-0.5)
-            Text("Przypomnimy 30 i 7 dni przed terminem oraz w dniu terminu.")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Palette.muted)
-            Button { router.add(scan: true) } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: "doc.viewfinder")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Palette.accentInk)
-                        .frame(width: 46, height: 46)
-                        .background(Palette.accent, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Zeskanuj aparatem").font(.system(size: 16, weight: .heavy))
-                        Text("Data ważności odczyta się sama").font(.system(size: 12, weight: .semibold)).opacity(0.7)
-                    }
+        Button { router.showingAdd = true } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text("NA START")
+                        .font(.system(size: 11, weight: .heavy)).tracking(0.6).opacity(0.7)
                     Spacer()
+                    Text("30 · 7 · 0 dni")
+                        .font(.system(size: 11, weight: .bold))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.black.opacity(0.12), in: Capsule())
                 }
-                .foregroundStyle(Palette.bg)
-                .padding(16)
-                .background(Palette.ink, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
-            .buttonStyle(PressScaleStyle())
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                ForEach([DocumentCategory.carInsurance, .carInspection, .idCard, .subscription]) { cat in
-                    Button { router.add(cat) } label: {
-                        Label(cat.title, systemImage: cat.symbol)
-                            .font(.system(size: 14, weight: .heavy))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .foregroundStyle(cat.group.ink)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 60)
-                            .background(cat.group.color, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    }
-                    .buttonStyle(PressScaleStyle())
+                Spacer(minLength: 24)
+
+                ZStack {
+                    Circle()
+                        .fill(Palette.accentInk.opacity(0.18))
+                        .frame(width: 112, height: 112)
+                        .scaleEffect(pulse ? 1.25 : 0.9)
+                        .opacity(pulse ? 0 : 1)
+                    Circle()
+                        .fill(Palette.accentInk)
+                        .frame(width: 96, height: 96)
+                    Image(systemName: "plus")
+                        .font(.system(size: 42, weight: .heavy))
+                        .foregroundStyle(Palette.accent)
                 }
+                .frame(maxWidth: .infinity)
+                .onAppear {
+                    withAnimation(.easeOut(duration: 1.8).repeatForever(autoreverses: false)) { pulse = true }
+                }
+
+                Spacer(minLength: 24)
+
+                Text("Dodaj pierwszy dokument")
+                    .font(.system(size: 28, weight: .heavy)).tracking(-0.8)
+                    .multilineTextAlignment(.leading)
+                Text("Zeskanuj go aparatem albo wpisz ręcznie. Przypomnimy 30 i 7 dni przed terminem oraz w dniu terminu.")
+                    .font(.system(size: 14, weight: .semibold))
+                    .opacity(0.75)
+                    .multilineTextAlignment(.leading)
+                    .padding(.top, 6)
+
+                FlowChips(examples: examples)
+                    .padding(.top, 18)
+            }
+            .foregroundStyle(Palette.accentInk)
+            .padding(20)
+            .frame(maxWidth: .infinity, minHeight: 520, alignment: .topLeading)
+            .background(Palette.accent, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .shadow(color: Palette.accent.opacity(0.35), radius: 20, y: 12)
+        }
+        .buttonStyle(PressScaleStyle(scale: 0.98))
+        .accessibilityLabel("Dodaj pierwszy dokument")
+    }
+}
+
+/// Przykładowe rodzaje dokumentów jako małe pigułki w dwóch rzędach.
+private struct FlowChips: View {
+    let examples: [(String, CategoryGroup)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            row(Array(examples.prefix(3)))
+            row(Array(examples.dropFirst(3)))
+        }
+    }
+
+    private func row(_ items: [(String, CategoryGroup)]) -> some View {
+        HStack(spacing: 8) {
+            ForEach(items, id: \.0) { item in
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 3).fill(item.1.color).frame(width: 8, height: 8)
+                    Text(item.0).font(.system(size: 13, weight: .heavy)).lineLimit(1)
+                }
+                .foregroundStyle(Palette.ink)
+                .padding(.horizontal, 10)
+                .frame(height: 30)
+                .background(Palette.panel, in: Capsule())
             }
         }
-        .padding(16)
-        .background(Palette.panel, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
     }
 }
