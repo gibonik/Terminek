@@ -2,10 +2,12 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 import StoreKit
+import AppIntents
 
 /// Konto: przypomnienia (kiedy i o czym), oś najbliższych powiadomień, wygląd i bezpieczeństwo.
 struct AccountView: View {
     @Environment(AppLock.self) private var lock
+    @Environment(AppRouter.self) private var router
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @Query(sort: \Document.expiryDate) private var documents: [Document]
@@ -16,6 +18,7 @@ struct AccountView: View {
     @AppStorage(NotificationScheduler.offsetKey(0)) private var remind0 = true
     @AppStorage(Haptics.enabledKey) private var haptics = true
     @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system.rawValue
+    @AppStorage(AppRouter.shakeKey) private var shakeToReport = true
     @State private var status: UNAuthorizationStatus = .notDetermined
     @State private var testSent = 0
     @State private var paywall: PaywallReason?
@@ -113,6 +116,40 @@ struct AccountView: View {
                     }
                     .padding(.horizontal, DT.Space.md)
                     .frame(minHeight: DT.Size.toggleRow)
+                }
+
+                group("Siri i skróty", index: 5) {
+                    Button { router.showShortcutsHelp = true } label: {
+                        row("mic", "Co powiedzieć Siri", chevron: true)
+                    }
+                    .buttonStyle(.plain)
+                    divider
+                    HStack(spacing: DT.Space.sm) {
+                        icon("square.2.layers.3d")
+                        Text("Aplikacja Skróty").font(DT.Typography.body)
+                        Spacer()
+                        ShortcutsLink()
+                            .shortcutsLinkStyle(.automaticOutline)
+                    }
+                    .padding(.horizontal, DT.Space.md)
+                    .frame(minHeight: DT.Size.toggleRow)
+                }
+                .sheet(isPresented: Binding(get: { router.showShortcutsHelp }, set: { router.showShortcutsHelp = $0 })) {
+                    ShortcutsHelpSheet()
+                }
+
+                group("Pomoc", index: 6) {
+                    Button { BugReportPresenter.present(BugReportRequest(kind: .bug)) } label: {
+                        row("ladybug", "Zgłoś błąd", chevron: true)
+                    }
+                    .buttonStyle(.plain)
+                    divider
+                    Button { BugReportPresenter.present(BugReportRequest(kind: .idea)) } label: {
+                        row("lightbulb", "Zaproponuj funkcję", chevron: true)
+                    }
+                    .buttonStyle(.plain)
+                    divider
+                    toggle("iphone.gen3.radiowaves.left.and.right", "Potrząśnij, by zgłosić błąd", isOn: $shakeToReport)
                 }
 
                 group("Informacje", index: 6) {
@@ -228,7 +265,7 @@ struct AccountView: View {
             .frame(width: DT.Size.ring, height: DT.Size.ring)
             VStack(alignment: .leading, spacing: DT.Space.xxs) {
                 Text("Twój portfel").font(DT.Typography.headline)
-                Text(documents.count == 1 ? "1 dokument" : "\(documents.count) dokumentów")
+                Text(Assistant.documentsCount(documents.count))
                     .font(DT.Typography.subheadline).opacity(0.85)
                 if monthly > 0 {
                     Text("Abonamenty: \(PL.money(monthly)) miesięcznie")
@@ -392,6 +429,20 @@ struct AccountView: View {
             .background(DT.Palette.accent.opacity(0.14), in: Circle())
     }
 
+    private func row(_ symbol: String, _ title: String, chevron: Bool = false) -> some View {
+        HStack(spacing: DT.Space.sm) {
+            icon(symbol)
+            Text(title).font(DT.Typography.body).foregroundStyle(DT.Palette.textPrimary)
+            Spacer()
+            if chevron {
+                Image(systemName: "chevron.right").font(DT.Typography.footnoteEmphasized).foregroundStyle(DT.Palette.textTertiary)
+            }
+        }
+        .padding(.horizontal, DT.Space.md)
+        .frame(minHeight: DT.Size.toggleRow)
+        .contentShape(Rectangle())
+    }
+
     private func toggle(_ symbol: String, _ title: String, isOn: Binding<Bool>) -> some View {
         Toggle(isOn: isOn) {
             HStack(spacing: DT.Space.sm) {
@@ -441,5 +492,67 @@ struct TimelineRow: View {
         }
         .padding(.horizontal, DT.Space.md)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// Jak używać skrótów: przykładowe frazy i przyciski do dodania.
+struct ShortcutsHelpSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private let examples: [(symbol: String, polish: String, english: String)] = [
+        ("hourglass", "Najbliższy termin w Terminku", "What's my next deadline in Terminek"),
+        ("calendar.badge.clock", "Kiedy kończy się OC w Terminku", "When does OC expire in Terminek"),
+        ("exclamationmark.triangle", "Co wygasa w Terminku", "What expires soon in Terminek"),
+        ("arrow.clockwise", "Odnów OC w Terminku", "Renew OC in Terminek"),
+        ("doc.viewfinder", "Zeskanuj dokument w Terminku", "Scan a document in Terminek"),
+    ]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DT.Space.lg) {
+                HStack {
+                    Text("Siri i skróty").font(DT.Typography.title2)
+                    Spacer()
+                    RoundIconButton(symbol: "xmark", label: "Zamknij") { dismiss() }
+                }
+                Text("Siri nie mówi jeszcze po polsku. Jeśli masz Siri po angielsku, użyj angielskiej frazy. Po polsku skróty działają w aplikacji Skróty, w Spotlight, pod przyciskiem czynności i po stuknięciu w tył iPhone'a (Ustawienia › Dostępność › Dotyk).")
+                    .font(DT.Typography.subheadline)
+                    .foregroundStyle(DT.Palette.textSecondary)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(examples.enumerated()), id: \.offset) { index, item in
+                        if index > 0 {
+                            Rectangle().fill(DT.Palette.separator).frame(height: DT.Size.hairline)
+                                .padding(.leading, DT.Space.md + DT.Size.iconBadge + DT.Space.sm)
+                        }
+                        HStack(alignment: .top, spacing: DT.Space.sm) {
+                            Image(systemName: item.symbol)
+                                .font(DT.Typography.subheadlineEmphasized)
+                                .foregroundStyle(DT.Palette.accentText)
+                                .frame(width: DT.Size.iconBadge, height: DT.Size.iconBadge)
+                                .background(DT.Palette.accent.opacity(0.14), in: Circle())
+                            VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                                Text("„\(item.polish)”").font(DT.Typography.headline)
+                                Text("„\(item.english)”").font(DT.Typography.footnote).foregroundStyle(DT.Palette.textSecondary)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(DT.Space.md)
+                    }
+                }
+                .panel()
+
+                SiriTipView(intent: NextDeadlineIntent())
+                    .siriTipViewStyle(.automatic)
+
+                Text("Skróty, które czytają dokumenty, działają tylko na odblokowanym iPhonie. Numery dokumentów i skany nie trafiają do Siri.")
+                    .font(DT.Typography.footnote)
+                    .foregroundStyle(DT.Palette.textTertiary)
+            }
+            .padding(DT.Space.gutter)
+        }
+        .background(AppBackground())
+        .foregroundStyle(DT.Palette.textPrimary)
+        .presentationDetents([.large])
     }
 }

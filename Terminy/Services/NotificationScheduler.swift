@@ -35,7 +35,10 @@ final class NotificationScheduler {
 
     func reschedule(_ documents: [Document], now: Date = .now) async {
         let settings = await center.notificationSettings()
-        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
+        guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
+            Log.reminders.info("Przypomnienia: brak zgody na powiadomienia")
+            return
+        }
 
         center.removeAllPendingNotificationRequests()
 
@@ -95,8 +98,11 @@ final class NotificationScheduler {
                                          options: [], icon: UNNotificationActionIcon(systemImageName: "arrow.clockwise"))
         let snooze = UNNotificationAction(identifier: snoozeAction, title: "Przypomnij jutro",
                                           options: [], icon: UNNotificationActionIcon(systemImageName: "clock"))
+        // Gdy podglądy są ukryte (ekran blokady), zamiast nazwy dokumentu widać ogólny tekst.
         let category = UNNotificationCategory(identifier: categoryID, actions: [renew, snooze],
-                                              intentIdentifiers: [], options: [])
+                                              intentIdentifiers: [],
+                                              hiddenPreviewsBodyPlaceholder: "Przypomnienie o terminie",
+                                              options: [])
         UNUserNotificationCenter.current().setNotificationCategories([category])
     }
 
@@ -120,8 +126,8 @@ final class NotificationScheduler {
                 continue
             }
             let days = doc.daysLeft(from: fire)
-            let text = days < 0 ? "Termin minął \(-days) \(days == -1 ? "dzień" : "dni") temu." :
-                days == 0 ? "Termin jest dziś." : "Do terminu zostało \(days) \(days == 1 ? "dzień" : "dni")."
+            let text = days < 0 ? "Termin minął \(-days) \(DaysText.dni(-days)) temu." :
+                days == 0 ? "Termin jest dziś." : "Do terminu \(days == 1 ? "został" : "zostało") \(days) \(DaysText.dni(days))."
             result.append(PlannedReminder(identifier: "\(id)-snooze", fireDate: fire,
                                           title: doc.displayTitle, body: "Przypominam: " + text,
                                           documentID: doc.id))

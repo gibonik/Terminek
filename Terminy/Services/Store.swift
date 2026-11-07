@@ -105,6 +105,7 @@ final class Store {
             case .success(.verified(let transaction)):
                 await transaction.finish()
                 await refresh()
+                Breadcrumbs.add("Zakup: \(product.id)")
                 return true
             case .success(.unverified):
                 message = "Apple nie potwierdził zakupu. Spróbuj jeszcze raz."
@@ -117,6 +118,8 @@ final class Store {
             }
         } catch {
             message = "Nie udało się kupić: \(error.localizedDescription)"
+            Log.store.error("Zakup nieudany: \(error.localizedDescription, privacy: .public)")
+            Breadcrumbs.add("Zakup nieudany")
         }
         return false
     }

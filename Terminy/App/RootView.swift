@@ -24,6 +24,10 @@ struct RootView: View {
             }
         }
         .tint(DT.Palette.accent)
+        // Zasłona także nad otwartymi arkuszami (szczegóły, edytor), których ZStack nie przykrywa.
+        .onChange(of: shield, initial: true) { _, kind in
+            ShieldWindow.shared.update(kind, lock: lock, style: AppAppearance(rawValue: appearance)?.colorScheme)
+        }
         .task { Store.shared.start() }
         .preferredColorScheme(AppAppearance(rawValue: appearance)?.colorScheme)
         .animation(.easeInOut(duration: 0.2), value: lock.isUnlocked)
@@ -54,9 +58,15 @@ struct RootView: View {
         }
     }
 
+    private var shield: ShieldWindow.Kind? {
+        if lock.isEnabled && (!lock.isUnlocked || scenePhase != .active) { return .lock }
+        if scenePhase != .active && !TerminyApp.isDemo { return .privacy }
+        return nil
+    }
+
     private var reminderSignature: String {
         documents
-            .map { "\($0.id)|\($0.expiryDate.timeIntervalSince1970)|\($0.remindersEnabled)|\($0.title)|\($0.owner)" }
+            .map { "\($0.id)|\($0.expiryDate.timeIntervalSince1970)|\($0.remindersEnabled)|\($0.title)|\($0.owner)|\($0.customOffsetsRaw)|\($0.categoryRaw)" }
             .sorted()
             .joined(separator: ";")
     }
@@ -97,6 +107,60 @@ struct LockView: View {
         }
         .onAppear {
             withAnimation(.easeOut(duration: 1.6).repeatForever(autoreverses: false)) { pulse = true }
+        }
+    }
+}
+
+/// Osobne okno nad całą aplikacją (także nad arkuszami) z blokadą albo zasłoną prywatności.
+@MainActor
+final class ShieldWindow {
+    static let shared = ShieldWindow()
+    enum Kind: Equatable { case lock, privacy }
+
+    private var window: UIWindow?
+    private var host: UIHostingController<AnyView>?
+
+    func update(_ kind: Kind?, lock: AppLock, style: ColorScheme?) {
+        guard let kind else { hide(); return }
+        let root = AnyView(Group {
+            switch kind {
+            case .lock: LockView().environment(lock)
+            case .privacy: PrivacyCover()
+            }
+        }.tint(DT.Palette.accent))
+
+        if let window, let host {
+            host.rootView = root
+            window.overrideUserInterfaceStyle = Self.uiStyle(style)
+            window.alpha = 1
+            window.isHidden = false
+            return
+        }
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+        let window = UIWindow(windowScene: scene)
+        window.windowLevel = .alert + 1
+        window.overrideUserInterfaceStyle = Self.uiStyle(style)
+        let host = UIHostingController(rootView: root)
+        host.view.backgroundColor = .clear
+        host.view.accessibilityViewIsModal = true
+        window.rootViewController = host
+        window.isHidden = false
+        self.window = window
+        self.host = host
+    }
+
+    private func hide() {
+        guard let window, !window.isHidden else { return }
+        UIView.animate(withDuration: 0.2, animations: { window.alpha = 0 }) { _ in
+            if window.alpha == 0 { window.isHidden = true }
+        }
+    }
+
+    private static func uiStyle(_ scheme: ColorScheme?) -> UIUserInterfaceStyle {
+        switch scheme {
+        case .light: .light
+        case .dark: .dark
+        default: .unspecified
         }
     }
 }

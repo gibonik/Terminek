@@ -2,12 +2,17 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 
-/// Dokument do otwarcia po stuknięciu w powiadomienie.
+/// Co otworzyć z zewnątrz: dokument z powiadomienia albo skrótu Siri, albo akcję ze skrótu.
 @MainActor
 @Observable
 final class DeepLink {
     static let shared = DeepLink()
     var documentID: UUID?
+    var action: Action?
+
+    enum Action: String {
+        case add, scan, assistant, report
+    }
 }
 
 /// Odbiera powiadomienia: pokazuje je także przy otwartej aplikacji i obsługuje przyciski
@@ -47,6 +52,7 @@ enum NotificationActions {
         case NotificationScheduler.renewAction:
             doc.renew()
             try? context.save()
+            Breadcrumbs.add("Odnowiono z powiadomienia")
         case NotificationScheduler.snoozeAction:
             NotificationScheduler.shared.snooze(doc)
         default:

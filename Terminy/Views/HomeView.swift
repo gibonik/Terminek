@@ -272,7 +272,7 @@ struct HeroBanner: View {
 
     /// Jaka część okresu ważności już minęła (do pierścienia).
     private var elapsed: Double {
-        let period = document.category.defaultRenewal
+        let period = (document.category == .subscription ? document.billingCycle?.components : nil) ?? document.category.defaultRenewal
         let cal = Calendar.current
         guard let start = cal.date(byAdding: DateComponents(year: -(period.year ?? 0), month: -(period.month ?? 0)), to: document.expiryDate) else { return 0 }
         let total = document.expiryDate.timeIntervalSince(start)
@@ -296,7 +296,7 @@ struct StatsRow: View {
                 StatTile(value: Double(soon), label: "w 30 dni", symbol: "clock.fill", tint: DT.Palette.warning)
                 StatTile(value: Double(expired), label: "po terminie", symbol: "exclamationmark.circle.fill", tint: DT.Palette.danger)
                 if monthly > 0 {
-                    StatTile(value: monthly, label: "zł / mies. abonamenty", symbol: "creditcard.fill", tint: DT.Palette.success, money: true)
+                    StatTile(value: monthly, label: "zł mies. na abonamenty", symbol: "creditcard.fill", tint: DT.Palette.success, money: true)
                 }
             }
         }

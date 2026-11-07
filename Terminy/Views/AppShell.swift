@@ -38,6 +38,8 @@ struct Toast: Identifiable, Equatable {
     let text: String
     let symbol: String
     var undo: (() -> Void)?
+    /// Napis na przycisku (domyślnie „Cofnij”).
+    var actionTitle = "Cofnij"
 
     static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
 }
@@ -61,6 +63,9 @@ final class AppRouter {
     var assistantOpen = false
     /// Ekran Terminek Plus.
     var paywall: PaywallReason?
+
+    /// Pomoc do skrótów Siri (z Konta).
+    var showShortcutsHelp = false
 
     /// Do zrzutów ekranu w CI: `-startTab home|wallet|calendar|account|detail|add`.
     private var launchAction: String?
@@ -102,12 +107,35 @@ final class AppRouter {
         editor = EditorRequest(document: document, category: document.category)
     }
 
-    func show(_ text: String, symbol: String = "checkmark.circle.fill", undo: (() -> Void)? = nil) {
-        let toast = Toast(text: text, symbol: symbol, undo: undo)
+    func show(_ text: String, symbol: String = "checkmark.circle.fill", actionTitle: String = "Cofnij",
+              duration: Double? = nil, undo: (() -> Void)? = nil) {
+        let toast = Toast(text: text, symbol: symbol, undo: undo, actionTitle: actionTitle)
         self.toast = toast
+        UIAccessibility.post(notification: .announcement, argument: text)
         Task { [weak self] in
-            try? await Task.sleep(for: .seconds(undo == nil ? 2.6 : 4))
+            try? await Task.sleep(for: .seconds(duration ?? (undo == nil ? 2.6 : 4)))
             if self?.toast?.id == toast.id { self?.toast = nil }
+        }
+    }
+
+    /// Zgłoszenie po potrząśnięciu: ze zrzutem tego, co było na ekranie.
+    func reportFromShake() {
+        guard !BugReportPresenter.isShowing, UserDefaults.standard.object(forKey: Self.shakeKey) as? Bool ?? true else { return }
+        Haptics.shared.fire(.pull)
+        BugReportPresenter.present(BugReportRequest(kind: .bug, screenshot: ScreenCapture.current()))
+    }
+
+    static let shakeKey = "shakeToReport"
+    private static let lastCrashKey = "lastSeenCrashReport"
+
+    /// Jeśli od ostatniego razu przyszedł nowy raport awarii, proponujemy jego wysłanie.
+    func offerCrashReport() {
+        guard !TerminyApp.isDemo, let latest = Diagnostics.shared.reports.first else { return }
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: Self.lastCrashKey) != latest.lastPathComponent else { return }
+        defaults.set(latest.lastPathComponent, forKey: Self.lastCrashKey)
+        show("Aplikacja ostatnio się zamknęła. Wyślesz raport?", symbol: "ladybug.fill", actionTitle: "Wyślij", duration: 8) {
+            BugReportPresenter.present(BugReportRequest(kind: .bug, crashReport: latest))
         }
     }
 
@@ -115,6 +143,7 @@ final class AppRouter {
     func renew(_ document: Document) {
         let previous = document.expiryDate
         Haptics.shared.fire(.renew)
+        Breadcrumbs.add("Odnowiono (\(document.category.rawValue))")
         withAnimation(DT.Motion.bouncy) { document.renew() }
         show("Odnowiono do \(PL.date(document.expiryDate))", symbol: "arrow.clockwise.circle.fill") { [weak document] in
             withAnimation { document?.expiryDate = previous }
@@ -135,6 +164,14 @@ final class AppRouter {
             assistantOpen = true
         case "paywall":
             paywall = .manual
+        case "report":
+            Task {
+                try? await Task.sleep(for: .milliseconds(600))
+                BugReportPresenter.present(BugReportRequest())
+            }
+        case "shortcuts":
+            tab = .account
+            showShortcutsHelp = true
         default:
             break
         }
@@ -254,6 +291,37 @@ struct MainTabView: View {
             router.editor = nil
             router.open(doc, from: "notification")
         }
+        .onChange(of: DeepLink.shared.action, initial: true) { _, action in
+            guard let action else { return }
+            DeepLink.shared.action = nil
+            handle(action)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in router.reportFromShake() }
+        .task {
+            try? await Task.sleep(for: .seconds(1.5))
+            router.offerCrashReport()
+        }
+    }
+}
+
+extension MainTabView {
+    /// Akcje ze skrótów Siri: zamykamy to, co otwarte, i przechodzimy we właściwe miejsce.
+    fileprivate func handle(_ action: DeepLink.Action) {
+        router.close()
+        router.editor = nil
+        switch action {
+        case .add:
+            router.tab = .home
+            router.add()
+        case .scan:
+            router.tab = .home
+            router.add(scan: true)
+        case .assistant:
+            router.tab = .home
+            router.assistantOpen = true
+        case .report:
+            BugReportPresenter.present(BugReportRequest())
+        }
     }
 }
 
@@ -363,7 +431,7 @@ struct ToastView: View {
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if toast.undo != nil {
-                Button("Cofnij", action: onUndo)
+                Button(toast.actionTitle, action: onUndo)
                     .font(DT.Typography.subheadlineEmphasized)
                     .foregroundStyle(DT.Palette.accentText)
                     .frame(minHeight: DT.Size.touch)

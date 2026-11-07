@@ -1,5 +1,6 @@
 import SwiftUI
 import CoreMotion
+import Combine
 
 // MARK: - Zestaw elementów „Midnight”
 //
@@ -46,7 +47,9 @@ final class Tilt {
 
     func start() {
         users += 1
-        guard users == 1, manager.isDeviceMotionAvailable, !UIAccessibility.isReduceMotionEnabled else { return }
+        // Żyroskop zużywa baterię: nie w trybie oszczędzania i nie przy ograniczonym ruchu.
+        guard users == 1, manager.isDeviceMotionAvailable, !UIAccessibility.isReduceMotionEnabled,
+              !ProcessInfo.processInfo.isLowPowerModeEnabled else { return }
         manager.deviceMotionUpdateInterval = 1.0 / 30
         manager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
             guard let motion else { return }
@@ -1021,15 +1024,22 @@ struct ProgressRing: View {
 struct LiveGradient: View {
     let colors: [Color]
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+
+    /// W trybie oszczędzania baterii gradient stoi (bez przerysowywania 30 razy na sekundę).
+    private var still: Bool { reduceMotion || lowPower }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { timeline in
-            let t = reduceMotion ? 0 : timeline.date.timeIntervalSinceReferenceDate
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: still)) { timeline in
+            let t = still ? 0 : timeline.date.timeIntervalSinceReferenceDate
             if #available(iOS 18.0, *) {
                 AnyView(mesh(t))
             } else {
                 AnyView(blobs(t))
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSProcessInfoPowerStateDidChange).receive(on: RunLoop.main)) { _ in
+            lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
         }
     }
 

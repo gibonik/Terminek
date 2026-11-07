@@ -18,7 +18,8 @@ final class AppLock {
         }
     }
 
-    var biometryName: String {
+    /// Nazwa zabezpieczenia liczona raz (LAContext jest drogi, a widoki pytają o nią często).
+    let biometryName: String = {
         let context = LAContext()
         _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
         switch context.biometryType {
@@ -27,7 +28,7 @@ final class AppLock {
         case .opticID: return "Optic ID"
         default: return "kod urządzenia"
         }
-    }
+    }()
 
     init() {
         let demo = ProcessInfo.processInfo.arguments.contains("-demoData")
@@ -59,8 +60,12 @@ final class AppLock {
                 localizedReason: "Odblokuj swoje dokumenty"
             )
             lastError = nil
+        } catch let error as LAError where error.code == .userCancel || error.code == .systemCancel || error.code == .appCancel {
+            // Anulowanie to nie błąd: zostaje sam przycisk „Otwórz”.
+            lastError = nil
         } catch {
             lastError = error.localizedDescription
+            Breadcrumbs.add("Blokada: nieudane odblokowanie")
         }
     }
 }

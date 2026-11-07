@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import UniformTypeIdentifiers
 
 /// Dodawanie i edycja dokumentu. Najpierw „Co dodajesz?”, potem formularz
 /// z kartą na górze, która na żywo pokazuje to, co wpisujesz.
@@ -40,6 +41,8 @@ struct DocumentEditView: View {
     @State private var ocrMessage: String?
     @State private var ocrFound = false
     @State private var inserting = false
+    @State private var saving = false
+    @State private var confirmDiscard = false
     @FocusState private var focus: Field?
 
     enum Field { case title, owner, number, price, notes }
@@ -94,7 +97,13 @@ struct DocumentEditView: View {
         .onAppear {
             if startScanning && DocumentScanner.isSupported { showingScanner = true }
         }
-        .task { loadExistingScan() }
+        .task { await loadExistingScan() }
+        .confirmationDialog("Odrzucić zmiany?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Odrzuć zmiany", role: .destructive) { dismiss() }
+            Button("Wróć do edycji", role: .cancel) {}
+        } message: {
+            Text("To, co wpisałeś, nie zostanie zapisane.")
+        }
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
@@ -121,6 +130,8 @@ struct DocumentEditView: View {
         if let document {
             return title != document.title || owner != document.owner || number != document.number
                 || notes != document.notes || expiryDate != document.expiryDate || scanChanged
+                || remindersEnabled != document.remindersEnabled || category != document.category
+                || (category == .subscription && (Self.parsePrice(priceText) != document.price || billingCycle != (document.billingCycle ?? .monthly)))
         }
         return !title.isEmpty || !owner.isEmpty || !number.isEmpty || !notes.isEmpty || !scanPages.isEmpty
     }
@@ -136,7 +147,7 @@ struct DocumentEditView: View {
     private func form(_ category: DocumentCategory) -> some View {
         VStack(spacing: 0) {
             HStack {
-                Button("Anuluj") { dismiss() }
+                Button("Anuluj") { if hasChanges { confirmDiscard = true } else { dismiss() } }
                     .font(DT.Typography.headline)
                     .foregroundStyle(DT.Palette.textSecondary)
                     .frame(minHeight: DT.Size.touch)
@@ -227,8 +238,9 @@ struct DocumentEditView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .safeAreaInset(edge: .bottom) {
-            PrimaryButton(title: document == nil ? "Dodaj dokument" : "Zapisz zmiany",
-                       symbol: document == nil ? "plus" : "checkmark") { save() }
+            PrimaryButton(title: saving ? "Zapisuję…" : document == nil ? "Dodaj dokument" : "Zapisz zmiany",
+                       symbol: saving ? nil : document == nil ? "plus" : "checkmark") { save() }
+                .disabled(saving || isReading)
                 .padding(.horizontal, DT.Space.gutter)
                 .padding(.bottom, DT.Space.xs)
                 .background(
@@ -519,14 +531,18 @@ struct DocumentEditView: View {
         Double(text.replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: " ", with: ""))
     }
 
-    private func loadExistingScan() {
+    /// Strony skanu rysujemy z PDF-a poza głównym wątkiem, żeby arkusz otwierał się płynnie.
+    private func loadExistingScan() async {
         guard let document, scanPages.isEmpty, !scanChanged else { return }
-        let pages = ScanStore.images(from: document.scanPDFData)
-        if !pages.isEmpty {
-            scanPages = pages
-        } else if let data = document.scanImageData, let image = UIImage(data: data) {
-            scanPages = [image]
-        }
+        let pdf = document.scanPDFData
+        let thumb = document.scanImageData
+        let pages = await Task.detached(priority: .userInitiated) { () -> [UIImage] in
+            let pages = ScanStore.images(from: pdf)
+            if !pages.isEmpty { return pages }
+            return thumb.flatMap(UIImage.init(data:)).map { [$0] } ?? []
+        }.value
+        guard !scanChanged, scanPages.isEmpty else { return }
+        scanPages = pages
     }
 
     private func handle(images: [UIImage]) async {
@@ -558,6 +574,7 @@ struct DocumentEditView: View {
         scanText = appending ? scanText + text : text
         let result = ScanAnalyzer().analyze(scanText, knownCategory: category)
         Log.scan.info("Skan: \(prepared.count) str., \(text.count) znaków, znaleziono: \(result.found.count) pól")
+        Breadcrumbs.add("Skan: \(prepared.count) str., \(text.count) znaków, pola: \(result.found.count), data: \(result.expiry == nil ? "nie" : "tak")")
         var read: [String] = []
         withAnimation(.spring(duration: 0.45, bounce: 0.2)) {
             if category == nil {
@@ -608,8 +625,24 @@ struct DocumentEditView: View {
     }
 
     private func save() {
-        guard let category else { return }
+        guard let category, !saving else { return }
         focus = nil
+        saving = true
+        Task {
+            // PDF z kilku stron to chwila pracy: robimy go poza głównym wątkiem.
+            var pdf: Data?
+            var thumb: Data?
+            if scanChanged {
+                let pages = scanPages
+                (pdf, thumb) = await Task.detached(priority: .userInitiated) {
+                    (ScanStore.makePDF(from: pages), pages.first.flatMap(ScanStore.thumbnail(of:)))
+                }.value
+            }
+            finishSave(category, pdf: pdf, thumbnail: thumb)
+        }
+    }
+
+    private func finishSave(_ category: DocumentCategory, pdf: Data?, thumbnail: Data?) {
         let target = document ?? Document()
         target.category = category
         target.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -619,8 +652,8 @@ struct DocumentEditView: View {
         target.notes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
         target.remindersEnabled = remindersEnabled
         if scanChanged {
-            target.scanPDFData = ScanStore.makePDF(from: scanPages)
-            target.scanImageData = scanPages.first.flatMap(ScanStore.thumbnail(of:))
+            target.scanPDFData = pdf
+            target.scanImageData = thumbnail
             target.scanPageCount = scanPages.count
         }
         if category == .subscription {
@@ -632,6 +665,7 @@ struct DocumentEditView: View {
         }
         let isNew = document == nil
         if isNew { context.insert(target) }
+        Breadcrumbs.add("\(isNew ? "Dodano" : "Zapisano") dokument (\(category.rawValue), skan: \(scanPages.count) str.)")
 
         let name = target.displayTitle
         let next = remindersEnabled ? NotificationScheduler.plannedReminders(
@@ -804,7 +838,9 @@ struct ScanTextSheet: View {
             .padding(DT.Space.md)
             .panel()
             Button {
-                UIPasteboard.general.string = text
+                // Tylko na tym telefonie (bez Uniwersalnego schowka) i tylko na 2 minuty: w tekście mogą być dane osobowe.
+                UIPasteboard.general.setItems([[UTType.plainText.identifier: text]],
+                                              options: [.localOnly: true, .expirationDate: Date.now.addingTimeInterval(120)])
                 Haptics.shared.fire(.stamp)
             } label: {
                 Label("Kopiuj", systemImage: "doc.on.doc")

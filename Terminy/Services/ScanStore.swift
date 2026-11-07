@@ -124,6 +124,16 @@ enum ScanStore {
         }
     }
 
+    /// Kopie PDF-ów do udostępniania i załączniki zgłoszeń leżą w katalogu tymczasowym.
+    /// Sprzątamy je przy starcie i po zamknięciu podglądu, żeby skany nie zostawały poza bazą.
+    static func removeSharedFiles() {
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory
+        let files = (try? fm.contentsOfDirectory(at: tmp, includingPropertiesForKeys: nil)) ?? []
+        for file in files where file.pathExtension.lowercased() == "pdf" { try? fm.removeItem(at: file) }
+        BugReport.cleanUpSharedFiles()
+    }
+
     private static func setComplete(_ url: URL) {
         try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
     }

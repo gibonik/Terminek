@@ -22,6 +22,8 @@ struct CardDetailView: View {
     @State private var editingOffsets = false
     @State private var addingToCalendar = false
     @State private var paywall: PaywallReason?
+    /// Miniatura skanu zdekodowana raz (body liczy się przy każdym ruchu karty).
+    @State private var scanThumb: UIImage?
 
     var body: some View {
         let days = document.daysLeft()
@@ -60,7 +62,7 @@ struct CardDetailView: View {
                     infoPanel.riseIn(2)
                     remindersPanel.riseIn(3)
 
-                    if let data = document.scanImageData, let image = UIImage(data: data) {
+                    if let image = scanThumb {
                         Button { showingScan = true } label: {
                             Image(uiImage: image)
                                 .resizable()
@@ -103,6 +105,10 @@ struct CardDetailView: View {
         .foregroundStyle(DT.Palette.textPrimary)
         .onAppear { Tilt.shared.start() }
         .onDisappear { Tilt.shared.stop() }
+        .task(id: document.scanImageData?.count) {
+            let data = document.scanImageData
+            scanThumb = await Task.detached { data.flatMap(UIImage.init(data:)) }.value
+        }
         .confirmationDialog("Usunąć „\(document.displayTitle)”?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Usuń dokument", role: .destructive) { delete() }
         } message: {
@@ -320,6 +326,7 @@ struct CardDetailView: View {
 
     private func delete() {
         let doc = document
+        Breadcrumbs.add("Usunięto dokument (\(doc.category.rawValue))")
         router.show("Usunięto „\(doc.displayTitle)”", symbol: "trash.circle.fill")
         close()
         // Usuwamy po zamknięciu ekranu, żeby widok nie czytał już skasowanego obiektu.
@@ -385,6 +392,9 @@ struct ScanViewer: View {
             .padding(.top, DT.Space.xs)
         }
         .task { shareFile = makeShareFile() }
+        .onDisappear {
+            if let shareFile { try? FileManager.default.removeItem(at: shareFile) }
+        }
     }
 
     /// PDF do udostępnienia zapisany tymczasowo pod czytelną nazwą.

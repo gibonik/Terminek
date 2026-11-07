@@ -130,7 +130,10 @@ struct PaywallView: View {
             )
         }
         .foregroundStyle(DT.Palette.textPrimary)
-        .onAppear { store.message = nil }
+        .onAppear {
+            store.message = nil
+            Breadcrumbs.add("Ekran Plus: \(reason.rawValue)")
+        }
         .sheet(item: $legal) { LegalView(document: $0) }
         .onChange(of: store.isPlus) { _, plus in if plus { dismiss() } }
     }
