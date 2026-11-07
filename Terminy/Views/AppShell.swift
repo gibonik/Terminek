@@ -67,10 +67,13 @@ final class AppRouter {
     }
 
     func open(_ document: Document) {
+        Haptics.shared.fire(.pull)
         withAnimation(.spring(duration: 0.55, bounce: 0.18)) { opened = document }
     }
 
     func close() {
+        guard opened != nil else { return }
+        Haptics.shared.fire(.stow)
         withAnimation(.spring(duration: 0.5, bounce: 0.15)) { opened = nil }
     }
 
@@ -95,6 +98,7 @@ final class AppRouter {
     /// Odnawia dokument i pokazuje komunikat z możliwością cofnięcia.
     func renew(_ document: Document) {
         let previous = document.expiryDate
+        Haptics.shared.fire(.renew)
         withAnimation(.spring(duration: 0.5, bounce: 0.25)) { document.renew() }
         show("Odnowiono do \(PL.date(document.expiryDate))", symbol: "arrow.clockwise.circle.fill") { [weak document] in
             withAnimation { document?.expiryDate = previous }
@@ -167,8 +171,6 @@ struct MainTabView: View {
                 .environment(router)
         }
         .sensoryFeedback(.selection, trigger: router.tab)
-        .sensoryFeedback(.impact(weight: .light), trigger: router.opened?.id)
-        .sensoryFeedback(.success, trigger: router.toast?.id) { _, new in new != nil }
         .onChange(of: DeepLink.shared.documentID, initial: true) { _, id in
             guard let id else { return }
             DeepLink.shared.documentID = nil

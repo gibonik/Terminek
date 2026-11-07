@@ -4,6 +4,7 @@ import SwiftData
 struct SettingsView: View {
     @Environment(AppLock.self) private var lock
     @Query private var documents: [Document]
+    @AppStorage(Haptics.enabledKey) private var haptics = true
 
     var body: some View {
         @Bindable var lock = lock
@@ -28,6 +29,24 @@ struct SettingsView: View {
                         .padding(.horizontal, 6)
                 }
                 .riseIn(0)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle(isOn: $haptics) {
+                        row("iphone.radiowaves.left.and.right", "Wibracje")
+                    }
+                    .tint(W.gold)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 60)
+                    .walletPanel()
+                    .onChange(of: haptics) { _, on in
+                        if on { Haptics.shared.fire(.stow) }
+                    }
+                    Text("Telefon delikatnie stuknie, gdy wyjmujesz kartę, odnawiasz dokument albo wkładasz nowy.")
+                        .font(.footnote)
+                        .foregroundStyle(W.muted)
+                        .padding(.horizontal, 6)
+                }
+                .riseIn(1)
 
                 VStack(alignment: .leading, spacing: 8) {
                     VStack(spacing: 0) {
@@ -59,7 +78,7 @@ struct SettingsView: View {
                         .foregroundStyle(W.muted)
                         .padding(.horizontal, 6)
                 }
-                .riseIn(1)
+                .riseIn(2)
 
                 VStack(spacing: 6) {
                     Image(systemName: "wallet.pass.fill")
@@ -72,7 +91,7 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 24)
-                .riseIn(2)
+                .riseIn(3)
             }
             .padding(.horizontal, 18)
             .padding(.top, 8)

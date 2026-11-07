@@ -385,11 +385,11 @@ struct ExpiredStamp: View {
             .rotationEffect(.degrees(-10))
             .scaleEffect(landed || reduceMotion ? 1 : 2)
             .opacity(landed || reduceMotion ? 1 : 0)
-            .sensoryFeedback(.impact(weight: .heavy), trigger: landed) { _, new in new }
             .task {
                 guard !landed else { return }
                 try? await Task.sleep(for: .milliseconds(420))
                 withAnimation(.spring(duration: 0.3, bounce: 0.35)) { landed = true }
+                Haptics.shared.fireOnce(.stamp)
             }
             .accessibilityHidden(true)
     }

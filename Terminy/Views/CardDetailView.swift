@@ -13,6 +13,7 @@ struct CardDetailView: View {
     @State private var confirmDelete = false
     @State private var showingScan = false
     @State private var flip: Double = 0
+    @State private var bursts = 0
     @State private var drag: CGFloat = 0
     @State private var shown = false
 
@@ -45,6 +46,7 @@ struct CardDetailView: View {
                         .rotation3DEffect(.degrees(flip), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
                         .modifier(TiltCard(active: !reduceMotion))
                         .offset(y: drag)
+                        .overlay { RenewBurst(trigger: bursts) }
                         .gesture(
                             DragGesture()
                                 .onChanged { drag = max(0, $0.translation.height) }
@@ -59,7 +61,14 @@ struct CardDetailView: View {
                             .riseIn(0)
 
                         GoldButton(title: "Odnów do \(PL.date(document.renewedExpiryDate()))", symbol: "arrow.clockwise") {
-                            withAnimation(.spring(duration: 0.85, bounce: 0.15)) { flip += 360 }
+                            if !reduceMotion {
+                                withAnimation(.spring(duration: 0.85, bounce: 0.15)) { flip += 360 }
+                                // Iskry, kiedy karta kończy obrót i pokazuje nową datę.
+                                Task {
+                                    try? await Task.sleep(for: .milliseconds(380))
+                                    bursts += 1
+                                }
+                            }
                             router.renew(document)
                         }
                         .riseIn(1)
@@ -223,6 +232,7 @@ struct CardDetailView: View {
         // Usuwamy po schowaniu karty, żeby widok nie czytał już skasowanego obiektu.
         Task {
             try? await Task.sleep(for: .milliseconds(550))
+            Haptics.shared.fire(.remove)
             withAnimation(.snappy) { context.delete(doc) }
         }
     }
@@ -237,6 +247,73 @@ struct TiltCard: ViewModifier {
         content
             .rotation3DEffect(.degrees(active ? tilt.x * 8 : 0), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
             .rotation3DEffect(.degrees(active ? -tilt.y * 6 : 0), axis: (x: 1, y: 0, z: 0), perspective: 0.6)
+    }
+}
+
+/// Złote iskry rozpryskujące się spod karty po odnowieniu. Rysowane w Canvas, bez widoków na każdą iskrę.
+struct RenewBurst: View {
+    let trigger: Int
+    @State private var start: Date?
+
+    private struct Spark {
+        let angle: Double
+        let speed: Double
+        let size: Double
+        let spin: Double
+        let delay: Double
+        let warm: Bool
+    }
+
+    private static let sparks: [Spark] = {
+        var rng = SeededRandom(seed: 42)
+        return (0..<46).map { _ in
+            Spark(angle: rng.next() * .pi * 2,
+                  speed: 170 + rng.next() * 260,
+                  size: 3 + rng.next() * 5,
+                  spin: (rng.next() - 0.5) * 12,
+                  delay: rng.next() * 0.08,
+                  warm: rng.next() > 0.35)
+        }
+    }()
+
+    private let duration = 0.95
+
+    var body: some View {
+        TimelineView(.animation(paused: start == nil)) { timeline in
+            Canvas { context, size in
+                guard let start else { return }
+                let t = timeline.date.timeIntervalSince(start)
+                guard t < duration else { return }
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+                for spark in Self.sparks {
+                    let local = max(0, t - spark.delay)
+                    let progress = local / duration
+                    // Szybki wylot i hamowanie, lekka grawitacja w dół.
+                    let distance = spark.speed * (1 - pow(1 - min(progress, 1), 3)) * 0.9
+                    let x = center.x + cos(spark.angle) * distance * 1.25
+                    let y = center.y + sin(spark.angle) * distance * 0.8 + 140 * progress * progress
+                    let alpha = 1 - progress
+                    let side = spark.size * (1 - progress * 0.5)
+                    var piece = context
+                    piece.opacity = alpha
+                    piece.translateBy(x: x, y: y)
+                    piece.rotate(by: .radians(spark.spin * local))
+                    let rect = CGRect(x: -side / 2, y: -side / 2, width: side, height: side * (spark.warm ? 1 : 2.2))
+                    piece.fill(Path(roundedRect: rect, cornerRadius: side / 3),
+                               with: .color(spark.warm ? W.gold : W.cream))
+                }
+            }
+        }
+        .frame(width: 900, height: 900)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onChange(of: trigger) {
+            start = .now
+            Task {
+                try? await Task.sleep(for: .seconds(duration + 0.1))
+                start = nil
+            }
+        }
     }
 }
 

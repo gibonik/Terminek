@@ -456,6 +456,7 @@ struct DocumentEditView: View {
         }
 
         // Karta „wsuwa się” w dół do portfela, potem arkusz się zamyka.
+        Haptics.shared.fire(.insert)
         withAnimation(.spring(duration: 0.45, bounce: 0.15)) { inserting = true }
         Task {
             try? await Task.sleep(for: .milliseconds(380))

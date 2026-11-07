@@ -25,6 +25,7 @@ struct RootView: View {
             switch phase {
             case .background:
                 lock.lock()
+                Haptics.shared.stop()
                 cameFromBackground = true
             case .active:
                 let shouldPrompt = cameFromBackground
