@@ -30,10 +30,10 @@ extension Color {
 }
 
 enum Palette {
-    /// Po terminie.
-    static let expired = Color(uiColor: .systemRed)
+    /// Po terminie. Ciemniejsze niż systemowe w jasnym motywie, żeby tekst miał kontrast 4.5:1.
+    static let expired = Color.dynamic(0xD70015, 0xFF453A)
     /// Do 7 dni.
-    static let soon = Color(uiColor: .systemOrange)
+    static let soon = Color.dynamic(0xC4500F, 0xFF9F0A)
     /// Kolor przewodni: niebieski tusz długopisu, którym wypełnia się formularze.
     static let tint = Color.dynamic(0x1F3FBF, 0x6F8CFF)
 }
