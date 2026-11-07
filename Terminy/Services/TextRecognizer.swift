@@ -11,7 +11,12 @@ enum TextRecognizer {
         return try await Task.detached(priority: .userInitiated) {
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
-            request.recognitionLanguages = ["pl-PL", "en-US"]
+            // Języki, których Vision nie obsługuje na danym iOS, wywalają cały odczyt błędem,
+            // więc bierzemy tylko obsługiwane (polski doszedł dopiero w nowszych wersjach).
+            let wanted = ["pl-PL", "en-US"]
+            let supported = (try? request.supportedRecognitionLanguages()) ?? ["en-US"]
+            let languages = wanted.filter(supported.contains)
+            request.recognitionLanguages = languages.isEmpty ? ["en-US"] : languages
             request.usesLanguageCorrection = false // autokorekta psuje daty i numery
 
             try VNImageRequestHandler(cgImage: cgImage, orientation: orientation).perform([request])

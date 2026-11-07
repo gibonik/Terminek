@@ -372,6 +372,16 @@ enum AppAppearance: Int, CaseIterable, Identifiable {
 }
 
 extension UIImage {
+    /// Zdjęcie z galerii bywa obrócone tylko w metadanych; Vision woli piksele „do góry”.
+    func normalizedUp() -> UIImage {
+        guard imageOrientation != .up else { return self }
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = scale
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+
     func downscaled(maxDimension: CGFloat) -> UIImage {
         let longest = max(size.width, size.height)
         guard longest > maxDimension else { return self }

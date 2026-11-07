@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 /// Dodawanie i edycja dokumentu. Najpierw „Co dodajesz?”, potem formularz
 /// z kartą na górze, która na żywo pokazuje to, co wpisujesz.
@@ -27,6 +28,10 @@ struct DocumentEditView: View {
     @State private var scanIssues: [ScanStore.Issue] = []
     /// Co wpisał skan; pole jest podświetlone, dopóki ktoś go nie zmieni.
     @State private var scanned: [Field: String] = [:]
+    /// Surowy tekst z OCR, do podejrzenia, gdy odczyt nie wyszedł.
+    @State private var scanText = ""
+    @State private var showingScanText = false
+    @State private var photoItem: PhotosPickerItem?
 
     @State private var showingScanner = false
     @State private var showingCalendar = false
@@ -64,6 +69,7 @@ struct DocumentEditView: View {
             } else {
                 CategoryPicker(
                     canScan: DocumentScanner.isSupported,
+                    photoItem: $photoItem,
                     onPick: { picked in
                         withAnimation(.spring(duration: 0.45, bounce: 0.2)) { category = picked }
                         if picked == .subscription { expiryDate = Calendar.current.date(byAdding: .month, value: 1, to: .now) ?? .now }
@@ -88,6 +94,22 @@ struct DocumentEditView: View {
             if startScanning && DocumentScanner.isSupported { showingScanner = true }
         }
         .task { loadExistingScan() }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task {
+                defer { photoItem = nil }
+                guard let data = try? await item.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else {
+                    ocrFound = false
+                    ocrMessage = "Nie udało się wczytać zdjęcia."
+                    return
+                }
+                await handle(images: [image.normalizedUp()])
+            }
+        }
+        .sheet(isPresented: $showingScanText) {
+            ScanTextSheet(text: scanText)
+        }
     }
 
     private var hasChanges: Bool {
@@ -317,19 +339,32 @@ struct DocumentEditView: View {
                         .foregroundStyle(DT.Palette.warning)
                 }
             }
-            if DocumentScanner.isSupported {
-                if scanPages.isEmpty {
-                    scanButton("Zeskanuj dokument", symbol: "doc.viewfinder", append: false)
-                    Text("Ze skanu odczytam datę, numer i nazwisko. Zdjęcia zostają na telefonie.")
-                        .font(DT.Typography.footnote)
-                        .foregroundStyle(DT.Palette.textSecondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    HStack(spacing: DT.Space.xs) {
-                        scanButton("Dodaj stronę", symbol: "plus.viewfinder", append: true)
-                        scanButton("Od nowa", symbol: "arrow.counterclockwise", append: false)
+            if scanPages.isEmpty {
+                HStack(spacing: DT.Space.xs) {
+                    if DocumentScanner.isSupported {
+                        scanButton("Zeskanuj", symbol: "doc.viewfinder", append: false)
                     }
+                    galleryButton(append: false)
+                }
+                Text("Ze skanu albo zdjęcia odczytam datę, numer i nazwisko. Zdjęcia zostają na telefonie.")
+                    .font(DT.Typography.footnote)
+                    .foregroundStyle(DT.Palette.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+            } else {
+                HStack(spacing: DT.Space.xs) {
+                    if DocumentScanner.isSupported {
+                        scanButton("Dodaj stronę", symbol: "plus.viewfinder", append: true)
+                    } else {
+                        galleryButton(append: true)
+                    }
+                    scanButton("Od nowa", symbol: "arrow.counterclockwise", append: false)
+                }
+                if !scanText.isEmpty {
+                    Button("Pokaż odczytany tekst") { showingScanText = true }
+                        .font(DT.Typography.footnoteEmphasized)
+                        .foregroundStyle(DT.Palette.accentText)
+                        .frame(maxWidth: .infinity, minHeight: DT.Size.touch)
                 }
             }
         }
@@ -337,9 +372,26 @@ struct DocumentEditView: View {
         .panel()
     }
 
+    private func galleryButton(append: Bool) -> some View {
+        PhotosPicker(selection: $photoItem, matching: .images) {
+            Label(append ? "Dodaj zdjęcie" : "Z galerii", systemImage: "photo.on.rectangle")
+                .font(DT.Typography.headline)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundStyle(DT.Palette.accentText)
+                .frame(maxWidth: .infinity, minHeight: DT.Size.field)
+                .background(DT.Palette.surfaceRaised, in: Capsule())
+        }
+        .simultaneousGesture(TapGesture().onEnded { appendingScan = append })
+    }
+
     private func scanButton(_ title: String, symbol: String, append: Bool) -> some View {
         Button {
             appendingScan = append
+            if !append && !DocumentScanner.isSupported {
+                withAnimation(.snappy) { scanPages = []; scanChanged = true; scanText = ""; ocrMessage = nil }
+                return
+            }
             showingScanner = true
         } label: {
             Label(title, systemImage: symbol)
@@ -475,7 +527,8 @@ struct DocumentEditView: View {
             }
         }
 
-        let result = ScanAnalyzer().analyze(text, knownCategory: category)
+        scanText = appending ? scanText + text : text
+        let result = ScanAnalyzer().analyze(scanText, knownCategory: category)
         var read: [String] = []
         withAnimation(.spring(duration: 0.45, bounce: 0.2)) {
             if category == nil {
@@ -495,8 +548,10 @@ struct DocumentEditView: View {
                 read.append("numer")
             }
             ocrFound = result.expiry != nil
-            if read.isEmpty {
-                ocrMessage = "Nie udało się nic odczytać. Uzupełnij ręcznie."
+            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                ocrMessage = "Na zdjęciu nie widać tekstu. Zrób zdjęcie bliżej i przy lepszym świetle."
+            } else if read.isEmpty {
+                ocrMessage = "Nie udało się nic odczytać. Uzupełnij ręcznie albo zajrzyj w „Pokaż odczytany tekst”."
             } else if result.expiry == nil {
                 ocrMessage = "Odczytano \(Self.list(read)), ale nie datę. Ustaw ją ręcznie."
             } else if let date = result.expiry, date < Calendar.current.startOfDay(for: .now) {
@@ -581,6 +636,7 @@ struct DocumentEditView: View {
 
 struct CategoryPicker: View {
     let canScan: Bool
+    @Binding var photoItem: PhotosPickerItem?
     let onPick: (DocumentCategory) -> Void
     let onScan: () -> Void
     let onCancel: () -> Void
@@ -632,6 +688,26 @@ struct CategoryPicker: View {
                     }
                 }
 
+                PhotosPicker(selection: $photoItem, matching: .images) {
+                    HStack(spacing: DT.Space.md) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(DT.Typography.title3)
+                            .foregroundStyle(DT.Palette.accent)
+                            .frame(width: DT.Size.hologram.width, height: DT.Size.hologram.height)
+                        VStack(alignment: .leading, spacing: DT.Space.xxs) {
+                            Text("Wybierz zdjęcie z galerii").font(DT.Typography.headline).foregroundStyle(DT.Palette.textPrimary)
+                            Text("Odczytam datę z gotowego zdjęcia")
+                                .font(DT.Typography.subheadline)
+                                .foregroundStyle(DT.Palette.textSecondary)
+                        }
+                        Spacer()
+                    }
+                    .padding(DT.Space.md)
+                    .panel()
+                }
+                .buttonStyle(CardPressStyle())
+                .riseIn(1)
+
                 ForEach(Array(CategoryGroup.allCases.enumerated()), id: \.element) { index, group in
                     let items = group.categories.filter { $0 != .other }
                     if !items.isEmpty {
@@ -669,5 +745,47 @@ struct CategoryPicker: View {
             .padding(.bottom, DT.Space.xxl)
         }
         .scrollIndicators(.hidden)
+    }
+}
+
+/// Tekst odczytany ze skanu: do sprawdzenia, czemu coś się nie wpisało, i do skopiowania.
+struct ScanTextSheet: View {
+    let text: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DT.Space.md) {
+            HStack {
+                Text("Odczytany tekst").font(DT.Typography.title3)
+                Spacer()
+                RoundIconButton(symbol: "xmark", label: "Zamknij") { dismiss() }
+            }
+            Text("Tak telefon odczytał skan. Jeśli data jest tu poprawna, a się nie wpisała, skopiuj ten tekst i wyślij twórcy aplikacji. Usuń wcześniej PESEL i inne dane, których nie chcesz pokazywać.")
+                .font(DT.Typography.footnote)
+                .foregroundStyle(DT.Palette.textSecondary)
+            ScrollView {
+                Text(text)
+                    .font(DT.Typography.footnote.monospaced())
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(DT.Space.md)
+            .panel()
+            Button {
+                UIPasteboard.general.string = text
+                Haptics.shared.fire(.stamp)
+            } label: {
+                Label("Kopiuj", systemImage: "doc.on.doc")
+                    .font(DT.Typography.headline)
+                    .foregroundStyle(DT.Palette.onAccent)
+                    .frame(maxWidth: .infinity, minHeight: DT.Size.button)
+                    .background(DT.Palette.accent, in: Capsule())
+            }
+            .buttonStyle(CardPressStyle())
+        }
+        .padding(DT.Space.gutter)
+        .background(AppBackground())
+        .foregroundStyle(DT.Palette.textPrimary)
+        .presentationDetents([.medium, .large])
     }
 }
