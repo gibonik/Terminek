@@ -62,7 +62,7 @@ struct LockView: View {
 
     var body: some View {
         ZStack {
-            WalletBackground()
+            AppBackground()
             VStack(spacing: DT.Space.md) {
                 ZStack {
                     Circle().strokeBorder(DT.Palette.accent.opacity(0.35), lineWidth: DT.Size.hairline * 2)
@@ -75,7 +75,7 @@ struct LockView: View {
                         .foregroundStyle(DT.Palette.onAccent)
                 }
                 .padding(.bottom, DT.Space.xs)
-                Text("Portfel zamknięty")
+                Text("Terminy są zablokowane")
                     .font(DT.Typography.title)
                     .foregroundStyle(DT.Palette.textPrimary)
                 if let error = lock.lastError {
@@ -84,7 +84,7 @@ struct LockView: View {
                         .foregroundStyle(DT.Palette.textSecondary)
                         .multilineTextAlignment(.center)
                 }
-                GoldButton(title: "Otwórz (\(lock.biometryName))", symbol: "faceid") {
+                PrimaryButton(title: "Otwórz (\(lock.biometryName))", symbol: "faceid") {
                     Task { await lock.unlock() }
                 }
                 .padding(.top, DT.Space.md)

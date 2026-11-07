@@ -86,8 +86,8 @@ enum CategoryGroup: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Kolor karty dokumentu i kropki w kalendarzu.
-    var color: Color {
+    /// Gradient karty dokumentu.
+    var gradient: [Color] {
         switch self {
         case .auto: DT.Palette.Card.auto
         case .home: DT.Palette.Card.home
@@ -96,15 +96,11 @@ enum CategoryGroup: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Ciemny tekst na karcie w kolorze grupy.
-    var ink: Color {
-        switch self {
-        case .auto: DT.Palette.Card.autoInk
-        case .home: DT.Palette.Card.homeInk
-        case .personal: DT.Palette.Card.personalInk
-        case .subscriptions: DT.Palette.Card.subscriptionsInk
-        }
-    }
+    /// Jeden kolor grupy (kropki w kalendarzu, ikony).
+    var color: Color { gradient[0] }
+
+    /// Tekst na karcie.
+    var ink: Color { DT.Palette.Card.ink }
 
     var symbol: String {
         switch self {

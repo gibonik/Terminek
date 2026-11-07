@@ -44,7 +44,7 @@ struct CalendarScreen: View {
                     .id(month)
                     .transition(.push(from: forward ? .trailing : .leading))
                     .padding(DT.Space.sm)
-                    .walletPanel()
+                    .panel()
                     .gesture(
                         DragGesture(minimumDistance: DT.Space.lg).onEnded { value in
                             guard abs(value.translation.width) > abs(value.translation.height) * 1.5 else { return }
@@ -53,7 +53,7 @@ struct CalendarScreen: View {
                     )
 
                 HStack {
-                    WalletSectionTitle(text: listTitle)
+                    SectionHeader(text: listTitle)
                     if selectedDay != nil || !cal.isDate(month, equalTo: .now, toGranularity: .month) {
                         Button("Dziś") { show(.now) }
                             .font(DT.Typography.subheadlineEmphasized)
@@ -67,24 +67,25 @@ struct CalendarScreen: View {
                         .font(DT.Typography.body)
                         .foregroundStyle(DT.Palette.textSecondary)
                         .frame(maxWidth: .infinity, minHeight: DT.Size.tile)
-                        .walletPanel()
+                        .panel()
                 } else {
                     VStack(spacing: 0) {
                         ForEach(Array(listed.enumerated()), id: \.element.id) { index, doc in
                             if index > 0 { Rectangle().fill(DT.Palette.separator).frame(height: DT.Size.hairline).padding(.leading, DT.Space.md * 2 + DT.Size.miniCard.width) }
-                            Button { router.tab = .home; router.open(doc) } label: {
+                            Button { router.open(doc, from: "cal-\(doc.id)") } label: {
                                 DocRow(document: doc)
                             }
                             .buttonStyle(CardPressStyle())
+                            .zoomSource("cal-\(doc.id)")
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
-                    .walletPanel()
+                    .panel()
                 }
             }
             .padding(.horizontal, DT.Space.gutter)
             .padding(.top, DT.Space.xs)
-            .padding(.bottom, DT.Space.dockClearance)
+            .padding(.bottom, DT.Space.tabBarClearance)
         }
         .scrollIndicators(.hidden)
         .sensoryFeedback(.selection, trigger: month)
@@ -155,7 +156,7 @@ struct MonthGrid: View {
                     if let day {
                         cell(day)
                     } else {
-                        Color.clear.frame(height: DT.Size.row)
+                        Color.clear.frame(height: DT.Size.dayCell + DT.Space.sm)
                     }
                 }
             }
@@ -193,7 +194,7 @@ struct MonthGrid: View {
                 }
                 .frame(height: DT.Size.dot)
             }
-            .frame(maxWidth: .infinity, minHeight: DT.Size.row)
+            .frame(maxWidth: .infinity, minHeight: DT.Size.dayCell + DT.Space.sm)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

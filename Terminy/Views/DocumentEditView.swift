@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-/// Dodawanie i edycja dokumentu. Najpierw „Co wkładasz do portfela?”, potem formularz
+/// Dodawanie i edycja dokumentu. Najpierw „Co dodajesz?”, potem formularz
 /// z kartą na górze, która na żywo pokazuje to, co wpisujesz.
 struct DocumentEditView: View {
     private let document: Document?
@@ -51,7 +51,7 @@ struct DocumentEditView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            WalletBackground()
+            AppBackground()
             if let category {
                 form(category)
                     .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -71,7 +71,7 @@ struct DocumentEditView: View {
             }
         }
         .foregroundStyle(DT.Palette.textPrimary)
-        .presentationCornerRadius(34)
+        .presentationCornerRadius(DT.Radius.panel + DT.Space.md)
         .interactiveDismissDisabled(hasChanges)
         .fullScreenCover(isPresented: $showingScanner) {
             DocumentScanner { pages in
@@ -128,7 +128,7 @@ struct DocumentEditView: View {
                 VStack(spacing: DT.Space.md) {
                     DocCard(data: preview, tilt: false)
                         .scaleEffect(inserting ? 0.86 : 1)
-                        .offset(y: inserting ? DT.Size.cardHeight * 3 : 0)
+                        .offset(y: inserting ? DT.Size.card.height * 3 : 0)
                         .rotationEffect(.degrees(inserting ? 4 : 0))
                         .animation(.spring(duration: 0.45, bounce: 0.25), value: preview)
                         .padding(.bottom, DT.Space.xxs)
@@ -149,8 +149,8 @@ struct DocumentEditView: View {
                                 Text("zł").foregroundStyle(DT.Palette.textSecondary)
                             }
                             .padding(.horizontal, DT.Space.md)
-                            .frame(minHeight: DT.Size.row)
-                            .walletPanel()
+                            .frame(minHeight: DT.Size.toggleRow)
+                            .panel()
 
                             HStack(spacing: DT.Space.xs) {
                                 ForEach(BillingCycle.allCases) { cycle in
@@ -173,7 +173,7 @@ struct DocumentEditView: View {
                             .focused($focus, equals: .notes)
                     }
                     .padding(DT.Space.md)
-                    .walletPanel()
+                    .panel()
 
                     Toggle(isOn: $remindersEnabled) {
                         VStack(alignment: .leading, spacing: DT.Space.xxs) {
@@ -185,7 +185,7 @@ struct DocumentEditView: View {
                     }
                     .tint(DT.Palette.accent)
                     .padding(DT.Space.md)
-                    .walletPanel()
+                    .panel()
                 }
                 .padding(.horizontal, DT.Space.gutter)
                 .padding(.top, DT.Space.sm)
@@ -195,8 +195,8 @@ struct DocumentEditView: View {
             .scrollDismissesKeyboard(.interactively)
         }
         .safeAreaInset(edge: .bottom) {
-            GoldButton(title: document == nil ? "Włóż do portfela" : "Zapisz zmiany",
-                       symbol: document == nil ? "wallet.pass" : "checkmark") { save() }
+            PrimaryButton(title: document == nil ? "Dodaj dokument" : "Zapisz zmiany",
+                       symbol: document == nil ? "plus" : "checkmark") { save() }
                 .padding(.horizontal, DT.Space.gutter)
                 .padding(.bottom, DT.Space.xs)
                 .background(
@@ -258,7 +258,7 @@ struct DocumentEditView: View {
             }
         }
         .padding(DT.Space.md)
-        .walletPanel()
+        .panel()
         .sensoryFeedback(.selection, trigger: expiryDate)
     }
 
@@ -278,7 +278,7 @@ struct DocumentEditView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(isOn ? DT.Palette.onAccent : DT.Palette.textPrimary)
-                .frame(maxWidth: .infinity, minHeight: DT.Size.chip)
+                .frame(maxWidth: .infinity, minHeight: DT.Size.pill)
                 .background(isOn ? DT.Palette.accent : DT.Palette.surfaceRaised, in: Capsule())
         }
         .buttonStyle(CardPressStyle())
@@ -324,7 +324,7 @@ struct DocumentEditView: View {
             }
         }
         .padding(DT.Space.md)
-        .walletPanel()
+        .panel()
     }
 
     private func field(_ label: String, text: Binding<String>, prompt: String, focus field: Field,
@@ -341,7 +341,7 @@ struct DocumentEditView: View {
         .padding(.horizontal, DT.Space.md)
         .padding(.vertical, DT.Space.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .walletPanel()
+        .panel()
         .overlay {
             RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous)
                 .strokeBorder(DT.Palette.accent.opacity(focus == field ? 0.7 : 0), lineWidth: DT.Size.hairline * 2)
@@ -442,9 +442,9 @@ struct DocumentEditView: View {
         ).first?.fireDate : nil
         let message: String
         if let next {
-            message = (isNew ? "„\(name)” jest w portfelu. " : "Zapisano. ") + "Przypomnę \(PL.dayMonth(next))."
+            message = (isNew ? "Dodano „\(name)”. " : "Zapisano. ") + "Przypomnę \(PL.dayMonth(next))."
         } else {
-            message = isNew ? "„\(name)” jest w portfelu." : "Zapisano zmiany."
+            message = isNew ? "Dodano „\(name)”." : "Zapisano zmiany."
         }
 
         // O zgodę na powiadomienia pytamy dopiero przy pierwszym dokumencie, kiedy wiadomo po co.
@@ -460,13 +460,13 @@ struct DocumentEditView: View {
         withAnimation(.spring(duration: 0.45, bounce: 0.15)) { inserting = true }
         Task {
             try? await Task.sleep(for: .milliseconds(380))
-            router.show(message, symbol: isNew ? "wallet.pass.fill" : "checkmark.circle.fill")
+            router.show(message, symbol: isNew ? "plus.circle.fill" : "checkmark.circle.fill")
             dismiss()
         }
     }
 }
 
-// MARK: - Co wkładasz do portfela?
+// MARK: - Co dodajesz?
 
 struct CategoryPicker: View {
     let canScan: Bool
@@ -486,7 +486,7 @@ struct CategoryPicker: View {
                         .foregroundStyle(DT.Palette.textSecondary)
                         .frame(minHeight: DT.Size.touch)
                 }
-                Text("Co wkładasz\ndo portfela?")
+                Text("Co dodajesz?")
                     .font(DT.Typography.largeTitle)
                     .riseIn(0)
 
@@ -511,7 +511,7 @@ struct CategoryPicker: View {
                             Spacer()
                         }
                         .padding(DT.Space.md)
-                        .walletPanel()
+                        .panel()
                         .overlay(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous).strokeBorder(DT.Palette.accent.opacity(0.5), lineWidth: DT.Size.hairline))
                     }
                     .buttonStyle(CardPressStyle())
@@ -547,8 +547,8 @@ struct CategoryPicker: View {
                     }
                     .foregroundStyle(DT.Palette.textPrimary)
                     .padding(.horizontal, DT.Space.md)
-                    .frame(minHeight: DT.Size.row)
-                    .walletPanel()
+                    .frame(minHeight: DT.Size.toggleRow)
+                    .panel()
                 }
                 .buttonStyle(CardPressStyle())
                 .riseIn(7)

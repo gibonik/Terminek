@@ -2,24 +2,24 @@ import SwiftUI
 import SwiftData
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case home, calendar, reminders, settings
+    case home, wallet, calendar, account
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .home: "Portfel"
+        case .home: "Start"
+        case .wallet: "Dokumenty"
         case .calendar: "Kalendarz"
-        case .reminders: "Przypomnienia"
-        case .settings: "Ustawienia"
+        case .account: "Konto"
         }
     }
 
     var symbol: String {
         switch self {
-        case .home: "wallet.pass"
+        case .home: "house"
+        case .wallet: "rectangle.stack"
         case .calendar: "calendar"
-        case .reminders: "bell"
-        case .settings: "gearshape"
+        case .account: "person.crop.circle"
         }
     }
 }
@@ -28,7 +28,7 @@ enum AppTab: String, CaseIterable, Identifiable {
 struct EditorRequest: Identifiable {
     let id = UUID()
     var document: Document?
-    /// `nil` = najpierw pytamy „Co wkładasz do portfela?”.
+    /// `nil` = najpierw pytamy o rodzaj.
     var category: DocumentCategory?
     var startScanning = false
 }
@@ -42,17 +42,23 @@ struct Toast: Identifiable, Equatable {
     static func == (a: Toast, b: Toast) -> Bool { a.id == b.id }
 }
 
-/// Wspólny stan: zakładka, otwarta karta, edytor i komunikaty.
+/// Wspólny stan: zakładka, otwarty dokument, edytor i komunikaty.
 @MainActor
 @Observable
 final class AppRouter {
     var tab: AppTab = .home
-    /// Karta wyciągnięta z portfela (szczegóły).
+    /// Dokument otwarty na pełnym ekranie.
     var opened: Document?
+    /// Skąd go otwarto (karta w karuzeli, wiersz listy…), żeby przejście „zoom” wyszło z tego miejsca.
+    var openedSource = ""
     var editor: EditorRequest?
     var toast: Toast?
+    /// Grupa do pokazania po przejściu do zakładki Dokumenty (z rzędu na starcie).
+    var documentsGroup: CategoryGroup?
+    /// Po przejściu do Dokumentów od razu otwórz wyszukiwanie.
+    var documentsSearch = false
 
-    /// Do zrzutów ekranu w CI: `-startTab home|calendar|reminders|settings|detail|add`.
+    /// Do zrzutów ekranu w CI: `-startTab home|wallet|calendar|account|detail|add`.
     private var launchAction: String?
 
     init() {
@@ -66,15 +72,16 @@ final class AppRouter {
         }
     }
 
-    func open(_ document: Document) {
+    func open(_ document: Document, from source: String) {
         Haptics.shared.fire(.pull)
-        withAnimation(DT.Motion.open) { opened = document }
+        openedSource = source
+        opened = document
     }
 
     func close() {
         guard opened != nil else { return }
         Haptics.shared.fire(.stow)
-        withAnimation(DT.Motion.close) { opened = nil }
+        opened = nil
     }
 
     func add(_ category: DocumentCategory? = nil, scan: Bool = false) {
@@ -85,7 +92,6 @@ final class AppRouter {
         editor = EditorRequest(document: document, category: document.category)
     }
 
-    /// Krótki komunikat na dole ekranu, opcjonalnie z „Cofnij”.
     func show(_ text: String, symbol: String = "checkmark.circle.fill", undo: (() -> Void)? = nil) {
         let toast = Toast(text: text, symbol: symbol, undo: undo)
         self.toast = toast
@@ -99,75 +105,126 @@ final class AppRouter {
     func renew(_ document: Document) {
         let previous = document.expiryDate
         Haptics.shared.fire(.renew)
-        withAnimation(.spring(duration: 0.5, bounce: 0.25)) { document.renew() }
+        withAnimation(DT.Motion.bouncy) { document.renew() }
         show("Odnowiono do \(PL.date(document.expiryDate))", symbol: "arrow.clockwise.circle.fill") { [weak document] in
             withAnimation { document?.expiryDate = previous }
         }
     }
 
-    /// Wykonuje akcję startową raz, gdy dane są już wczytane.
     func runLaunchAction(firstDocument: Document?) {
         guard let action = launchAction else { return }
         launchAction = nil
         switch action {
         case "detail":
-            if let firstDocument { opened = firstDocument }
+            if let firstDocument { open(firstDocument, from: "launch") }
         case "add":
             add()
+        case "reminders", "settings":
+            tab = .account
         default:
             break
         }
     }
 }
 
+// MARK: - Przejście „zoom” z karty do szczegółów (iOS 18+)
+
+private struct ZoomNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+extension EnvironmentValues {
+    var zoomNamespace: Namespace.ID? {
+        get { self[ZoomNamespaceKey.self] }
+        set { self[ZoomNamespaceKey.self] = newValue }
+    }
+}
+
+private struct ZoomSource: ViewModifier {
+    let key: String
+    @Environment(\.zoomNamespace) private var namespace
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            if let namespace {
+                content.matchedTransitionSource(id: key, in: namespace) { source in
+                    source.clipShape(RoundedRectangle(cornerRadius: DT.Radius.card, style: .continuous))
+                }
+            } else {
+                content
+            }
+        } else {
+            content
+        }
+    }
+}
+
+private struct ZoomDestination: ViewModifier {
+    let key: String
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.navigationTransition(.zoom(sourceID: key, in: namespace))
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// Miejsce, z którego „wyrasta” ekran szczegółów.
+    func zoomSource(_ key: String) -> some View { modifier(ZoomSource(key: key)) }
+}
+
+// MARK: - Główny ekran
+
 struct MainTabView: View {
     @State private var router = AppRouter()
     @Environment(\.modelContext) private var context
-    @Namespace private var cards
+    @Namespace private var zoom
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            WalletBackground()
+            AppBackground()
 
             Group {
                 switch router.tab {
-                case .home: WalletView(cards: cards)
+                case .home: HomeView()
+                case .wallet: DocumentsView()
                 case .calendar: CalendarScreen()
-                case .reminders: RemindersView()
-                case .settings: SettingsView()
+                case .account: AccountView()
                 }
             }
-            .transition(.opacity.combined(with: .scale(scale: 0.98)))
             .id(router.tab)
+            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: DT.Space.sm)),
+                                    removal: .opacity))
 
-            Dock(selection: $router.tab) { router.add() }
-                .padding(.bottom, DT.Space.xs)
-                .opacity(router.opened == nil ? 1 : 0)
-                .offset(y: router.opened == nil ? 0 : DT.Space.dockClearance)
-
-            if let doc = router.opened {
-                CardDetailView(document: doc, cards: cards)
-                    .zIndex(2)
-                    .transition(.asymmetric(insertion: .identity, removal: .opacity))
-            }
-
-            if let toast = router.toast {
-                ToastView(toast: toast) {
-                    toast.undo?()
-                    router.toast = nil
+            VStack(spacing: DT.Space.sm) {
+                if let toast = router.toast {
+                    ToastView(toast: toast) {
+                        toast.undo?()
+                        router.toast = nil
+                    }
+                    .padding(.horizontal, DT.Space.gutter)
+                    .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.9)))
                 }
-                .padding(.horizontal, DT.Space.gutter)
-                .padding(.bottom, router.opened == nil ? DT.Space.xxl * 2 : DT.Space.lg)
-                .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.9)))
-                .zIndex(3)
+                TabBar(selection: $router.tab) { router.add() }
             }
+            .padding(.bottom, DT.Space.xs)
         }
         .foregroundStyle(DT.Palette.textPrimary)
-        .animation(.spring(duration: 0.45, bounce: 0.3), value: router.toast)
-        .animation(.snappy(duration: 0.3), value: router.tab)
+        .animation(DT.Motion.bouncy, value: router.toast)
+        .animation(.snappy(duration: 0.25), value: router.tab)
         .environment(router)
-        .sheet(item: $router.editor) { request in
+        .environment(\.zoomNamespace, zoom)
+        .sheet(item: Binding(get: { router.opened == nil ? router.editor : nil }, set: { router.editor = $0 })) { request in
             DocumentEditView(request: request)
+                .environment(router)
+        }
+        .fullScreenCover(item: $router.opened) { doc in
+            CardDetailView(document: doc)
+                .modifier(ZoomDestination(key: router.openedSource, namespace: zoom))
                 .environment(router)
         }
         .sensoryFeedback(.selection, trigger: router.tab)
@@ -178,77 +235,80 @@ struct MainTabView: View {
             let descriptor = FetchDescriptor<Document>(predicate: #Predicate { $0.id == target })
             guard let doc = try? context.fetch(descriptor).first else { return }
             router.editor = nil
-            router.tab = .home
-            router.open(doc)
+            router.open(doc, from: "notification")
         }
     }
 }
 
-// MARK: - Dok na dole
+// MARK: - Pasek zakładek
 
-/// Pływający dok: cztery zakładki i mosiężny plus pośrodku.
-struct Dock: View {
+/// Pływający pasek ze szkła z czterema zakładkami i osobnym przyciskiem „dodaj”.
+struct TabBar: View {
     @Binding var selection: AppTab
     var onAdd: () -> Void
     @Namespace private var pill
 
     var body: some View {
-        HStack(spacing: DT.Space.xxs) {
-            item(.home)
-            item(.calendar)
-            addButton
-            item(.reminders)
-            item(.settings)
+        HStack(spacing: DT.Space.sm) {
+            HStack(spacing: 0) {
+                ForEach(AppTab.allCases) { tab in item(tab) }
+            }
+            .padding(DT.Space.xxs)
+            .glassBar(in: Capsule())
+
+            Button(action: onAdd) {
+                Image(systemName: "plus")
+                    .font(DT.Typography.title3)
+                    .foregroundStyle(DT.Palette.onAccent)
+                    .frame(width: DT.Size.tabItem.height + DT.Space.xs, height: DT.Size.tabItem.height + DT.Space.xs)
+                    .background(DT.Palette.accent, in: Circle())
+                    .shadow(color: DT.Palette.accent.opacity(0.55), radius: DT.Space.md, y: DT.Space.xs)
+            }
+            .buttonStyle(CardPressStyle())
+            .accessibilityLabel("Dodaj dokument")
         }
-        .padding(DT.Space.xs)
-        .dockBackground()
+        .padding(.horizontal, DT.Space.gutter)
     }
 
     private func item(_ tab: AppTab) -> some View {
         let isOn = selection == tab
         return Button {
-            withAnimation(.spring(duration: 0.35, bounce: 0.3)) { selection = tab }
+            withAnimation(DT.Motion.bouncy) { selection = tab }
         } label: {
-            Image(systemName: tab.symbol)
-                .symbolVariant(isOn ? .fill : .none)
-                .font(DT.Typography.title3)
-                .symbolEffect(.bounce, value: isOn)
-                .foregroundStyle(isOn ? DT.Palette.textPrimary : DT.Palette.textTertiary)
-                .frame(width: DT.Size.dockItem.width, height: DT.Size.dockItem.height)
-                .background {
-                    if isOn {
-                        Capsule()
-                            .fill(DT.Palette.surfaceRaised)
-                            .matchedGeometryEffect(id: "pill", in: pill)
-                    }
+            VStack(spacing: DT.Size.hairline * 2) {
+                Image(systemName: tab.symbol)
+                    .symbolVariant(isOn ? .fill : .none)
+                    .font(DT.Typography.headline)
+                    .symbolEffect(.bounce, value: isOn)
+                Text(tab.title)
+                    .font(DT.Typography.caption)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(isOn ? DT.Palette.textPrimary : DT.Palette.textSecondary)
+            .frame(maxWidth: .infinity, minHeight: DT.Size.tabItem.height)
+            .background {
+                if isOn {
+                    Capsule()
+                        .fill(DT.Palette.surfaceRaised)
+                        .matchedGeometryEffect(id: "pill", in: pill)
                 }
-                .contentShape(Capsule())
+            }
+            .contentShape(Capsule())
         }
-        .buttonStyle(CardPressStyle())
+        .buttonStyle(.plain)
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
-
-    private var addButton: some View {
-        Button(action: onAdd) {
-            Image(systemName: "plus")
-                .font(DT.Typography.title2)
-                .foregroundStyle(DT.Palette.onAccent)
-                .frame(width: DT.Size.dockPlus, height: DT.Size.dockPlus)
-                .background(DT.Palette.accent, in: Circle())
-                .shadow(color: DT.Palette.accent.opacity(0.35), radius: DT.Space.sm, y: DT.Space.xxs)
-        }
-        .buttonStyle(CardPressStyle())
-        .padding(.horizontal, DT.Space.xxs)
-        .accessibilityLabel("Dodaj dokument")
-    }
 }
 
-private struct DockBackground: ViewModifier {
+private struct GlassBar<S: Shape>: ViewModifier {
+    let shape: S
+
     func body(content: Content) -> some View {
         #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
-            content.glassEffect(.regular.tint(DT.Palette.backgroundDeep.opacity(0.55)), in: Capsule())
+            content.glassEffect(.regular, in: shape)
         } else {
             fallback(content)
         }
@@ -259,18 +319,17 @@ private struct DockBackground: ViewModifier {
 
     private func fallback(_ content: Content) -> some View {
         content
-            .background(.ultraThinMaterial, in: Capsule())
-            .background(DT.Palette.backgroundDeep.opacity(0.6), in: Capsule())
-            .overlay(Capsule().strokeBorder(DT.Palette.separator, lineWidth: DT.Size.hairline))
-            .shadow(color: DT.Palette.shadow, radius: DT.Space.lg, y: DT.Space.md)
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(shape.stroke(DT.Palette.separator, lineWidth: DT.Size.hairline))
+            .shadow(color: DT.Palette.shadow, radius: DT.Space.lg, y: DT.Space.sm)
     }
 }
 
 extension View {
-    func dockBackground() -> some View { modifier(DockBackground()) }
+    func glassBar<S: Shape>(in shape: S) -> some View { modifier(GlassBar(shape: shape)) }
 }
 
-/// Komunikat nad dokiem.
+/// Komunikat nad paskiem.
 struct ToastView: View {
     let toast: Toast
     let onUndo: () -> Void
@@ -295,8 +354,8 @@ struct ToastView: View {
         }
         .padding(.leading, DT.Space.md)
         .padding(.trailing, toast.undo == nil ? DT.Space.md : DT.Space.sm)
-        .frame(minHeight: DT.Size.row)
-        .dockBackground()
+        .frame(minHeight: DT.Size.toggleRow)
+        .glassBar(in: Capsule())
         .accessibilityElement(children: .contain)
     }
 }
