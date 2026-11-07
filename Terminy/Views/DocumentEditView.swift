@@ -9,6 +9,7 @@ struct DocumentEditView: View {
 
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppRouter.self) private var router
 
     @State private var category: DocumentCategory?
     @State private var title: String
@@ -49,12 +50,16 @@ struct DocumentEditView: View {
             Group {
                 if let category {
                     form(category)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity),
+                                                removal: .opacity))
                 } else {
                     CategoryPicker(
                         canScan: DocumentScanner.isSupported,
                         onPick: { picked in withAnimation { category = picked } },
                         onScan: { showingScanner = true }
                     )
+                    .transition(.asymmetric(insertion: .opacity,
+                                            removal: .move(edge: .leading).combined(with: .opacity)))
                 }
             }
             .navigationTitle(navigationTitle)
@@ -131,6 +136,8 @@ struct DocumentEditView: View {
                     Label(ocrMessage, systemImage: ocrFound ? "text.viewfinder" : "exclamationmark.triangle")
                         .font(.subheadline)
                         .foregroundStyle(ocrFound ? Color.secondary : Palette.soon)
+                        .symbolEffect(.bounce, value: ocrFound)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 Toggle("Przypomnienia", isOn: $remindersEnabled)
             } footer: {
@@ -281,8 +288,29 @@ struct DocumentEditView: View {
             target.price = nil
             target.billingCycle = nil
         }
-        if document == nil { context.insert(target) }
+        let isNew = document == nil
+        if isNew { context.insert(target) }
         savedTick += 1
+
+        let name = target.displayTitle
+        let next = remindersEnabled ? NotificationScheduler.plannedReminders(
+            for: [target], hour: NotificationScheduler.shared.reminderHour, now: .now,
+            offsets: NotificationScheduler.enabledOffsets()
+        ).first?.fireDate : nil
+        if let next {
+            router.show((isNew ? "Dodano „\(name)”. " : "Zapisano. ") + "Przypomnę \(PL.dayMonth(next)).",
+                        symbol: "bell.badge.fill")
+        } else {
+            router.show(isNew ? "Dodano „\(name)”" : "Zapisano zmiany")
+        }
+
+        // O zgodę na powiadomienia pytamy dopiero przy pierwszym dokumencie, kiedy wiadomo po co.
+        let context = self.context
+        Task {
+            await NotificationScheduler.shared.requestAuthorization()
+            let all = (try? context.fetch(FetchDescriptor<Document>())) ?? []
+            await NotificationScheduler.shared.reschedule(all)
+        }
         dismiss()
     }
 }

@@ -9,11 +9,16 @@ struct TerminyApp: App {
     /// Tryb pokazowy z przykładowymi danymi (zrzuty ekranu w CI): `-demoData`.
     static let isDemo = ProcessInfo.processInfo.arguments.contains("-demoData")
 
+    /// Baza dostępna dla akcji z powiadomień (działają bez otwierania widoków).
+    @MainActor static var sharedContainer: ModelContainer?
+
     let container: ModelContainer
     @State private var lock = AppLock()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
         container = Self.makeContainer()
+        Self.sharedContainer = container
     }
 
     var body: some Scene {

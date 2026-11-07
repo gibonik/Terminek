@@ -49,10 +49,10 @@ struct DeadlineSection: Identifiable {
 struct DeadlinesView: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.modelContext) private var context
-    @Query(sort: \Document.expiryDate) private var documents: [Document]
+    @Query(sort: \Document.expiryDate, animation: .snappy) private var documents: [Document]
     @State private var search = ""
     @State private var filter: CategoryGroup?
-    @State private var renewTick = 0
+    @Namespace private var zoom
 
     private var visible: [Document] {
         documents.filter { doc in
@@ -80,9 +80,11 @@ struct DeadlinesView: View {
             }
             .navigationTitle(filter?.title ?? "Terminy")
             .toolbar { toolbar }
-            .navigationDestination(for: Document.self) { DocumentDetailView(document: $0) }
+            .navigationDestination(for: Document.self) { doc in
+                DocumentDetailView(document: doc)
+                    .zoomDestination(doc.id, in: zoom)
+            }
         }
-        .sensoryFeedback(.success, trigger: renewTick)
         .onAppear {
             router.runLaunchAction(firstDocument: documents.first { $0.daysLeft() >= 0 } ?? documents.first)
         }
@@ -107,22 +109,23 @@ struct DeadlinesView: View {
                     ForEach(section.documents) { doc in
                         NavigationLink(value: doc) {
                             DocumentRow(document: doc, caption: section.kind == .year ? .month : .weekday)
+                                .zoomSource(doc.id, in: zoom)
                         }
                         .swipeActions(edge: .leading) {
-                            Button { renew(doc) } label: { Label("Odnów", systemImage: "arrow.clockwise") }
+                            Button { router.renew(doc) } label: { Label("Odnów", systemImage: "arrow.clockwise") }
                                 .tint(Palette.tint)
                         }
                         .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { context.delete(doc) } label: {
+                            Button(role: .destructive) { delete(doc) } label: {
                                 Label("Usuń", systemImage: "trash")
                             }
                         }
                         .contextMenu {
-                            Button { renew(doc) } label: {
+                            Button { router.renew(doc) } label: {
                                 Label("Odnów do \(PL.date(doc.renewedExpiryDate()))", systemImage: "arrow.clockwise")
                             }
                             Button { router.edit(doc) } label: { Label("Edytuj", systemImage: "pencil") }
-                            Button(role: .destructive) { context.delete(doc) } label: {
+                            Button(role: .destructive) { delete(doc) } label: {
                                 Label("Usuń", systemImage: "trash")
                             }
                         }
@@ -190,9 +193,10 @@ struct DeadlinesView: View {
         return "\(n) \(noun) \(verb) razem \(PL.money(total)) miesięcznie."
     }
 
-    private func renew(_ doc: Document) {
-        withAnimation { doc.renew() }
-        renewTick += 1
+    private func delete(_ doc: Document) {
+        let title = doc.displayTitle
+        withAnimation { context.delete(doc) }
+        router.show("Usunięto „\(title)”", symbol: "trash.circle.fill")
     }
 }
 
@@ -201,38 +205,50 @@ struct DeadlinesView: View {
 /// Jedyny duży element pulpitu: ile zostało do najbliższego terminu.
 struct NextUpView: View {
     let document: Document
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Przy pierwszym pokazaniu licznik „odlicza” do właściwej liczby dni.
+    @State private var settled = false
 
     var body: some View {
         let days = document.daysLeft()
+        let shown = settled || reduceMotion || days > 365 ? days : min(days + 12, 365)
         VStack(alignment: .leading, spacing: 2) {
             Text("Najbliższy termin")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            Text(bigText(days))
+            Text(bigText(shown))
                 .font(.system(size: 60, weight: .bold))
                 .tracking(-1.5)
                 .monospacedDigit()
                 .foregroundStyle(days <= 7 ? Urgency(days: days).color : Color.primary)
-                .contentTransition(.numericText())
+                .contentTransition(.numericText(countsDown: true))
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
             Text(document.displayTitle)
                 .font(.title3.weight(.semibold))
                 .lineLimit(2)
+                .contentTransition(.opacity)
             Text(detail)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityHint("Pokazuje szczegóły dokumentu")
+        .task {
+            guard !settled else { return }
+            try? await Task.sleep(for: .milliseconds(250))
+            withAnimation(.smooth(duration: 0.9)) { settled = true }
+        }
     }
 
     private func bigText(_ days: Int) -> String {
         switch days {
         case 0: return "Dziś"
         case 1: return "Jutro"
+        case 2...365: return "\(days) dni"
         default: return DaysText.headline(to: document.expiryDate).big
         }
     }

@@ -390,3 +390,53 @@ struct PrimaryButtonStyle: ViewModifier {
 extension View {
     func primaryButton() -> some View { modifier(PrimaryButtonStyle()) }
 }
+
+/// Pływający element (komunikat) w Liquid Glass, a na starszym systemie w materiale.
+struct GlassCapsule: ViewModifier {
+    func body(content: Content) -> some View {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular.interactive(), in: Capsule())
+        } else {
+            content.background(.regularMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+        }
+        #else
+        content.background(.regularMaterial, in: Capsule())
+            .shadow(color: .black.opacity(0.12), radius: 16, y: 6)
+        #endif
+    }
+}
+
+/// Przejście „zoom” z wiersza do szczegółów (iOS 18+).
+struct ZoomSource: ViewModifier {
+    let id: UUID
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            content
+        }
+    }
+}
+
+struct ZoomDestination: ViewModifier {
+    let id: UUID
+    let namespace: Namespace.ID
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.navigationTransition(.zoom(sourceID: id, in: namespace))
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func glassCapsule() -> some View { modifier(GlassCapsule()) }
+    func zoomSource(_ id: UUID, in namespace: Namespace.ID) -> some View { modifier(ZoomSource(id: id, namespace: namespace)) }
+    func zoomDestination(_ id: UUID, in namespace: Namespace.ID) -> some View { modifier(ZoomDestination(id: id, namespace: namespace)) }
+}

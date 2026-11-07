@@ -39,14 +39,95 @@ final class NotificationScheduler {
 
         center.removeAllPendingNotificationRequests()
 
-        let requests = Self.plannedReminders(for: documents, hour: reminderHour, now: now,
-                                             offsets: Self.enabledOffsets())
-            .prefix(maxPending)
-            .map(makeRequest)
+        var planned = Self.plannedReminders(for: documents, hour: reminderHour, now: now,
+                                            offsets: Self.enabledOffsets())
+        planned += snoozedReminders(for: documents, now: now)
+        planned.sort { $0.fireDate < $1.fireDate }
 
-        for request in requests {
-            try? await center.add(request)
+        let calendar = Calendar.current
+        for reminder in planned.prefix(maxPending) {
+            // Licznik na ikonie w chwili powiadomienia: ile dokumentów będzie wtedy po terminie lub na dziś.
+            let fireDay = calendar.startOfDay(for: reminder.fireDate)
+            let badge = documents.filter { calendar.startOfDay(for: $0.expiryDate) <= fireDay }.count
+            try? await center.add(makeRequest(reminder, badge: badge))
         }
+        await updateBadge(documents, now: now)
+    }
+
+    /// Licznik na ikonie aplikacji: dokumenty po terminie i te, które kończą się dziś.
+    func updateBadge(_ documents: [Document], now: Date = .now) async {
+        let count = documents.filter { $0.daysLeft(from: now) <= 0 }.count
+        try? await center.setBadgeCount(count)
+    }
+
+    /// Próbne powiadomienie za 5 sekund (z przyciskami), żeby zobaczyć, jak wygląda.
+    func sendTest(for document: Document?) async {
+        guard await requestAuthorization() else { return }
+        let content = UNMutableNotificationContent()
+        if let document {
+            let days = document.daysLeft()
+            content.title = document.displayTitle
+            content.body = days < 0 ? "Termin minął \(-days) \(DaysText.dni(-days)) temu. Tak będą wyglądać przypomnienia."
+                : "Do terminu zostało \(days) \(DaysText.dni(days)). Tak będą wyglądać przypomnienia."
+            content.userInfo = [Self.documentIDKey: document.id.uuidString]
+            content.categoryIdentifier = Self.categoryID
+        } else {
+            content.title = "Terminy"
+            content.body = "Tak będą wyglądać przypomnienia."
+        }
+        content.sound = .default
+        content.threadIdentifier = "terminy"
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+        try? await center.add(UNNotificationRequest(identifier: "test-\(UUID().uuidString)", content: content, trigger: trigger))
+    }
+
+    // MARK: Akcje w powiadomieniu
+
+    nonisolated static let categoryID = "deadline"
+    nonisolated static let renewAction = "RENEW"
+    nonisolated static let snoozeAction = "SNOOZE"
+    nonisolated static let documentIDKey = "documentID"
+    private let snoozeKey = "snoozedReminders"
+
+    /// Przyciski pod powiadomieniem (przytrzymanie albo rozwinięcie).
+    nonisolated static func registerCategories() {
+        let renew = UNNotificationAction(identifier: renewAction, title: "Odnów",
+                                         options: [], icon: UNNotificationActionIcon(systemImageName: "arrow.clockwise"))
+        let snooze = UNNotificationAction(identifier: snoozeAction, title: "Przypomnij jutro",
+                                          options: [], icon: UNNotificationActionIcon(systemImageName: "clock"))
+        let category = UNNotificationCategory(identifier: categoryID, actions: [renew, snooze],
+                                              intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([category])
+    }
+
+    /// Ponowne przypomnienie jutro o zwykłej godzinie. Zapisane, żeby przetrwało przeliczanie.
+    func snooze(_ document: Document, now: Date = .now) {
+        let calendar = Calendar.current
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)),
+              let fire = calendar.date(bySettingHour: reminderHour, minute: 0, second: 0, of: tomorrow) else { return }
+        var stored = UserDefaults.standard.dictionary(forKey: snoozeKey) as? [String: Double] ?? [:]
+        stored[document.id.uuidString] = fire.timeIntervalSince1970
+        UserDefaults.standard.set(stored, forKey: snoozeKey)
+    }
+
+    private func snoozedReminders(for documents: [Document], now: Date) -> [PlannedReminder] {
+        var stored = UserDefaults.standard.dictionary(forKey: snoozeKey) as? [String: Double] ?? [:]
+        var result: [PlannedReminder] = []
+        for (id, time) in stored {
+            let fire = Date(timeIntervalSince1970: time)
+            guard fire > now, let doc = documents.first(where: { $0.id.uuidString == id }) else {
+                stored[id] = nil
+                continue
+            }
+            let days = doc.daysLeft(from: fire)
+            let text = days < 0 ? "Termin minął \(-days) \(days == -1 ? "dzień" : "dni") temu." :
+                days == 0 ? "Termin jest dziś." : "Do terminu zostało \(days) \(days == 1 ? "dzień" : "dni")."
+            result.append(PlannedReminder(identifier: "\(id)-snooze", fireDate: fire,
+                                          title: doc.displayTitle, body: "Przypominam: " + text,
+                                          documentID: doc.id))
+        }
+        UserDefaults.standard.set(stored, forKey: snoozeKey)
+        return result
     }
 
     struct PlannedReminder: Equatable {
@@ -54,6 +135,7 @@ final class NotificationScheduler {
         let fireDate: Date
         let title: String
         let body: String
+        var documentID: UUID? = nil
     }
 
     /// Czysta funkcja (łatwa do testów): wylicza przyszłe przypomnienia posortowane po dacie.
@@ -77,7 +159,8 @@ final class NotificationScheduler {
                     identifier: "\(doc.id.uuidString)-\(offset)",
                     fireDate: fire,
                     title: doc.displayTitle,
-                    body: body(for: doc, offset: offset)
+                    body: body(for: doc, offset: offset),
+                    documentID: doc.id
                 ))
             }
         }
@@ -99,11 +182,17 @@ final class NotificationScheduler {
         }
     }
 
-    private func makeRequest(_ reminder: PlannedReminder) -> UNNotificationRequest {
+    private func makeRequest(_ reminder: PlannedReminder, badge: Int) -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
         content.title = reminder.title
         content.body = reminder.body
         content.sound = .default
+        content.badge = NSNumber(value: badge)
+        content.categoryIdentifier = Self.categoryID
+        content.threadIdentifier = "terminy"
+        if let id = reminder.documentID {
+            content.userInfo = [Self.documentIDKey: id.uuidString]
+        }
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: reminder.fireDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)

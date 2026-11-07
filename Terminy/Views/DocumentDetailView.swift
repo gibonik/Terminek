@@ -9,13 +9,14 @@ struct DocumentDetailView: View {
     @AppStorage(NotificationScheduler.reminderHourKey) private var reminderHour = 9
     @State private var confirmDelete = false
     @State private var showingScan = false
-    @State private var renewTick = 0
+    @State private var flip: Double = 0
 
     var body: some View {
         let days = document.daysLeft()
         List {
             Section {
                 DocumentCard(document: document)
+                    .rotation3DEffect(.degrees(flip), axis: (x: 0, y: 1, z: 0), perspective: 0.6)
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
             }
@@ -23,6 +24,7 @@ struct DocumentDetailView: View {
             Section {
                 LabeledContent(document.category == .subscription ? "Następna płatność" : "Ważny do",
                                value: PL.date(document.expiryDate))
+                    .contentTransition(.numericText())
                 LabeledContent(days < 0 ? "Po terminie od" : "Zostało") {
                     Text(days == 0 ? "dziś" : DaysText.long(to: document.expiryDate))
                         .foregroundStyle(days <= 7 ? Urgency(days: days).color : Color.secondary)
@@ -42,10 +44,11 @@ struct DocumentDetailView: View {
 
             Section {
                 Button {
-                    withAnimation { document.renew() }
-                    renewTick += 1
+                    withAnimation(.spring(duration: 0.8, bounce: 0.2)) { flip += 360 }
+                    router.renew(document)
                 } label: {
                     Label("Odnów do \(PL.date(document.renewedExpiryDate()))", systemImage: "arrow.clockwise")
+                        .contentTransition(.numericText())
                 }
             } footer: {
                 Text(renewFooter)
@@ -105,7 +108,6 @@ struct DocumentDetailView: View {
         .fullScreenCover(isPresented: $showingScan) {
             ScanViewer(data: document.scanImageData)
         }
-        .sensoryFeedback(.success, trigger: renewTick)
     }
 
     private var nextReminder: Date? {
@@ -128,6 +130,7 @@ struct DocumentDetailView: View {
 
     private func delete() {
         let doc = document
+        router.show("Usunięto „\(doc.displayTitle)”", symbol: "trash.circle.fill")
         dismiss()
         // Usuwamy po zamknięciu ekranu, żeby widok nie czytał już skasowanego obiektu.
         Task {
@@ -150,6 +153,7 @@ struct DocumentCard: View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .fill(group.color)
+                .shadow(color: group.color.opacity(0.35), radius: 18, y: 10)
 
             GuillocheShape()
                 .stroke(group.ink.opacity(0.09), lineWidth: 0.8)
@@ -187,6 +191,7 @@ struct DocumentCard: View {
                         Text(PL.numeric(document.expiryDate))
                             .font(.headline)
                             .monospacedDigit()
+                            .contentTransition(.numericText())
                     }
                     Spacer()
                     if !document.number.isEmpty {
@@ -203,12 +208,14 @@ struct DocumentCard: View {
 
             if expired {
                 ExpiredStamp()
+                    .transition(.scale(scale: 1.8).combined(with: .opacity))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                     .padding(.trailing, 22)
                     .offset(y: -6)
             }
         }
         .aspectRatio(1.586, contentMode: .fit)
+        .animation(.spring(duration: 0.4), value: expired)
         .accessibilityElement(children: .combine)
     }
 }
@@ -237,6 +244,9 @@ struct GuillocheShape: Shape {
 
 /// Pieczątka „Nieważny” na karcie po terminie.
 struct ExpiredStamp: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var landed = false
+
     var body: some View {
         Text("Nieważny")
             .font(.headline.weight(.heavy))
@@ -249,6 +259,15 @@ struct ExpiredStamp: View {
             }
             .background(Color.white.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .rotationEffect(.degrees(-9))
+            // Pieczątka „spada” na kartę po wejściu na ekran.
+            .scaleEffect(landed || reduceMotion ? 1 : 1.9)
+            .opacity(landed || reduceMotion ? 1 : 0)
+            .sensoryFeedback(.impact(weight: .heavy), trigger: landed) { _, new in new }
+            .task {
+                guard !landed else { return }
+                try? await Task.sleep(for: .milliseconds(380))
+                withAnimation(.spring(duration: 0.32, bounce: 0.35)) { landed = true }
+            }
             .accessibilityLabel("Po terminie")
     }
 }

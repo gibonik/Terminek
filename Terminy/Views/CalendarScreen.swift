@@ -6,6 +6,8 @@ struct CalendarScreen: View {
     @Query(sort: \Document.expiryDate) private var documents: [Document]
     @State private var month: Date = PL.calendar.dateInterval(of: .month, for: .now)?.start ?? .now
     @State private var selectedDay: Date?
+    @State private var forward = true
+    @Namespace private var zoom
 
     private let cal = PL.calendar
 
@@ -24,6 +26,8 @@ struct CalendarScreen: View {
             List {
                 Section {
                     MonthGrid(month: month, documents: monthDocuments, selectedDay: $selectedDay)
+                        .id(month)
+                        .transition(.push(from: forward ? .trailing : .leading))
                         .listRowInsets(EdgeInsets(top: 10, leading: 8, bottom: 10, trailing: 8))
                 }
 
@@ -35,7 +39,9 @@ struct CalendarScreen: View {
                         ForEach(listed) { doc in
                             NavigationLink(value: doc) {
                                 DocumentRow(document: doc)
+                                    .zoomSource(doc.id, in: zoom)
                             }
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                         }
                     }
                 } header: {
@@ -56,7 +62,10 @@ struct CalendarScreen: View {
                     Button { step(1) } label: { Label("Następny miesiąc", systemImage: "chevron.right") }
                 }
             }
-            .navigationDestination(for: Document.self) { DocumentDetailView(document: $0) }
+            .navigationDestination(for: Document.self) { doc in
+                DocumentDetailView(document: doc)
+                    .zoomDestination(doc.id, in: zoom)
+            }
         }
         .sensoryFeedback(.selection, trigger: month)
     }
@@ -77,6 +86,7 @@ struct CalendarScreen: View {
 
     private func step(_ delta: Int) {
         guard let next = cal.date(byAdding: .month, value: delta, to: month) else { return }
+        forward = delta > 0
         withAnimation(.snappy) {
             month = next
             selectedDay = nil
@@ -84,8 +94,10 @@ struct CalendarScreen: View {
     }
 
     private func show(_ date: Date) {
+        let target = cal.dateInterval(of: .month, for: date)?.start ?? date
+        forward = target > month
         withAnimation(.snappy) {
-            month = cal.dateInterval(of: .month, for: date)?.start ?? date
+            month = target
             selectedDay = cal.startOfDay(for: date)
         }
     }
@@ -97,6 +109,7 @@ struct MonthGrid: View {
     let documents: [Document]
     @Binding var selectedDay: Date?
 
+    @Namespace private var selection
     private let cal = PL.calendar
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
@@ -154,6 +167,7 @@ struct MonthGrid: View {
                     .background {
                         if isSelected {
                             Circle().fill(Palette.tint)
+                                .matchedGeometryEffect(id: "selected", in: selection)
                         } else if isToday {
                             Circle().stroke(Palette.tint, lineWidth: 1.5)
                         }

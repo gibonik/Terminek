@@ -33,7 +33,8 @@ struct RootView: View {
                 guard !TerminyApp.isDemo else { return }
                 Task {
                     if shouldPrompt { await lock.unlock() }
-                    await NotificationScheduler.shared.requestAuthorization()
+                    // Pierwsze pytanie o powiadomienia dopiero po dodaniu dokumentu (w edytorze).
+                    if !documents.isEmpty { await NotificationScheduler.shared.requestAuthorization() }
                     await NotificationScheduler.shared.reschedule(documents)
                 }
             default:

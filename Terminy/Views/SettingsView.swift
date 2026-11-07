@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(NotificationScheduler.offsetKey(0)) private var remind0 = true
     @AppStorage(AppAppearance.key) private var appearance = AppAppearance.system.rawValue
     @State private var notificationsStatus: UNAuthorizationStatus = .notDetermined
+    @State private var testSent = 0
 
     var body: some View {
         @Bindable var lock = lock
@@ -38,10 +39,20 @@ struct SettingsView: View {
                     Picker("Godzina", selection: $reminderHour) {
                         ForEach(6..<23, id: \.self) { Text("\($0):00").tag($0) }
                     }
+                    Button {
+                        testSent += 1
+                        let doc = documents.sorted { $0.expiryDate < $1.expiryDate }.first { $0.daysLeft() >= 0 } ?? documents.first
+                        Task { await NotificationScheduler.shared.sendTest(for: doc) }
+                    } label: {
+                        Label("Wyślij próbne powiadomienie", systemImage: "bell.badge")
+                            .symbolEffect(.bounce, value: testSent)
+                    }
                 } header: {
                     Text("Przypomnienia")
                 } footer: {
-                    Text("Dotyczy wszystkich dokumentów z włączonymi przypomnieniami.")
+                    Text(testSent > 0
+                         ? "Powiadomienie przyjdzie za 5 sekund. Przytrzymaj je, żeby zobaczyć przyciski „Odnów” i „Przypomnij jutro”."
+                         : "Dotyczy wszystkich dokumentów z włączonymi przypomnieniami.")
                 }
 
                 Section {
