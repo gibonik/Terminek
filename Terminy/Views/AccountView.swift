@@ -22,6 +22,8 @@ struct AccountView: View {
     @State private var manageSubscriptions = false
     @State private var versionTaps = 0
     @AppStorage(Store.developerMenuKey) private var developerMenu = false
+    @State private var legal: LegalDocument?
+    @State private var reportCount = Diagnostics.shared.reports.count
     @Namespace private var themePill
 
     private var upcoming: [NotificationScheduler.PlannedReminder] {
@@ -113,8 +115,44 @@ struct AccountView: View {
                     .frame(minHeight: DT.Size.toggleRow)
                 }
 
+                group("Informacje", index: 6) {
+                    ForEach(Array(LegalDocument.allCases.enumerated()), id: \.element) { index, doc in
+                        if index > 0 { divider }
+                        Button { legal = doc } label: {
+                            HStack(spacing: DT.Space.sm) {
+                                icon(doc.symbol)
+                                Text(doc.title).font(DT.Typography.body).foregroundStyle(DT.Palette.textPrimary)
+                                Spacer()
+                                Image(systemName: "chevron.right").font(DT.Typography.footnoteEmphasized).foregroundStyle(DT.Palette.textTertiary)
+                            }
+                            .padding(.horizontal, DT.Space.md)
+                            .frame(minHeight: DT.Size.toggleRow)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .sheet(item: $legal) { LegalView(document: $0) }
+
                 if developerMenu {
                     group("Menu deweloperskie", index: 6) {
+                        HStack(spacing: DT.Space.sm) {
+                            icon("ladybug")
+                            Text("Raporty awarii").font(DT.Typography.body)
+                            Spacer()
+                            if let latest = Diagnostics.shared.reports.first {
+                                ShareLink(item: latest) {
+                                    Text("Wyślij (\(reportCount))").font(DT.Typography.subheadlineEmphasized)
+                                }
+                                .tint(DT.Palette.accentText)
+                            } else {
+                                Text("Brak").font(DT.Typography.subheadline).foregroundStyle(DT.Palette.textSecondary)
+                            }
+                        }
+                        .padding(.horizontal, DT.Space.md)
+                        .frame(minHeight: DT.Size.toggleRow)
+                        .onAppear { reportCount = Diagnostics.shared.reports.count }
+                        divider
                         toggle("hammer", "Plus testowy (bez płatności)", isOn: Binding(
                             get: { Store.shared.debugPlus }, set: { Store.shared.setDebugPlus($0) }))
                         divider

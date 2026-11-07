@@ -16,6 +16,8 @@ targets:
     platform: iOS
     sources:
       - Terminy
+      - path: docs/legal
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: pl.terminy.app

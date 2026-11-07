@@ -19,6 +19,7 @@ struct TerminyApp: App {
     init() {
         container = Self.makeContainer()
         Self.sharedContainer = container
+        Diagnostics.shared.start()
     }
 
     var body: some Scene {

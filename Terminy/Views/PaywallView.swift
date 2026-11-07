@@ -7,6 +7,7 @@ struct PaywallView: View {
     let reason: PaywallReason
     @Environment(\.dismiss) private var dismiss
     @State private var selected = Store.yearlyID
+    @State private var legal: LegalDocument?
     private var store: Store { .shared }
 
     private struct Plan: Identifiable {
@@ -98,10 +99,14 @@ struct PaywallView: View {
                         .foregroundStyle(DT.Palette.textTertiary)
                         .multilineTextAlignment(.center)
 
-                    Button("Przywróć zakupy") { Task { await store.restore() } }
-                        .font(DT.Typography.footnoteEmphasized)
-                        .foregroundStyle(DT.Palette.accentText)
-                        .frame(minHeight: DT.Size.touch)
+                    HStack(spacing: DT.Space.md) {
+                        Button("Przywróć zakupy") { Task { await store.restore() } }
+                        Button("Regulamin") { legal = .terms }
+                        Button("Prywatność") { legal = .privacy }
+                    }
+                    .font(DT.Typography.footnoteEmphasized)
+                    .foregroundStyle(DT.Palette.accentText)
+                    .frame(minHeight: DT.Size.touch)
                 }
                 .padding(.horizontal, DT.Space.gutter)
                 .padding(.top, DT.Space.md)
@@ -124,6 +129,7 @@ struct PaywallView: View {
         }
         .foregroundStyle(DT.Palette.textPrimary)
         .onAppear { store.message = nil }
+        .sheet(item: $legal) { LegalView(document: $0) }
         .onChange(of: store.isPlus) { _, plus in if plus { dismiss() } }
     }
 

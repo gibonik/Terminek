@@ -557,6 +557,7 @@ struct DocumentEditView: View {
 
         scanText = appending ? scanText + text : text
         let result = ScanAnalyzer().analyze(scanText, knownCategory: category)
+        Log.scan.info("Skan: \(prepared.count) str., \(text.count) znaków, znaleziono: \(result.found.count) pól")
         var read: [String] = []
         withAnimation(.spring(duration: 0.45, bounce: 0.2)) {
             if category == nil {
