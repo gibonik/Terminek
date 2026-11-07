@@ -238,9 +238,9 @@ struct NextUpView: View {
     }
 
     private var detail: String {
-        let when = PL.dayAndMonth(document.expiryDate)
-        let owner = document.owner.isEmpty ? "" : "\(document.owner), "
-        return owner + "do \(when)"
+        let when = PL.dayMonth(document.expiryDate)
+        let what = document.category == .subscription ? "płatność \(when)" : "ważne do \(when)"
+        return document.owner.isEmpty ? String(what.prefix(1)).uppercased() + String(what.dropFirst()) : "\(document.owner), \(what)"
     }
 }
 

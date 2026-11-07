@@ -87,6 +87,11 @@ enum PL {
         date.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(locale))
     }
 
+    /// „13 listopada”.
+    static func dayMonth(_ date: Date) -> String {
+        date.formatted(.dateTime.day().month(.wide).locale(locale))
+    }
+
     /// „13.11.2026”.
     static func numeric(_ date: Date) -> String {
         date.formatted(.dateTime.day(.twoDigits).month(.twoDigits).year().locale(locale))
