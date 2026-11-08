@@ -65,4 +65,65 @@ final class NotificationPlanTests: XCTestCase {
         let plan = NotificationScheduler.plannedReminders(for: [soon, muted], hour: 9, now: now)
         XCTAssertEqual(plan.map(\.identifier), ["\(soon.id.uuidString)-7", "\(soon.id.uuidString)-0"])
     }
+
+    func testCustomOffsetsPerDocument() {
+        let cal = Calendar.current
+        let now = DateComponents(calendar: cal, year: 2026, month: 11, day: 6, hour: 12).date!
+        let expiry = DateComponents(calendar: cal, year: 2027, month: 3, day: 31).date!
+        let doc = Document(title: "OC", category: .carInsurance, expiryDate: expiry)
+        doc.customOffsets = [60, 3, 3]
+        XCTAssertEqual(doc.customOffsetsRaw, "60,3")
+
+        let plan = NotificationScheduler.plannedReminders(for: [doc], hour: 9, now: now, offsets: [30, 7, 0])
+        let days = plan.map { cal.dateComponents([.day], from: cal.startOfDay(for: $0.fireDate), to: expiry).day! }
+        XCTAssertEqual(days, [60, 3])
+        XCTAssertTrue(plan[1].body.hasPrefix("Zostało 3 dni"), plan[1].body)
+
+        doc.customOffsets = nil
+        XCTAssertEqual(NotificationScheduler.plannedReminders(for: [doc], hour: 9, now: now, offsets: [30, 7, 0]).count, 3)
+    }
+
+    func testRespectsChosenOffsets() {
+        let cal = Calendar.current
+        let now = DateComponents(calendar: cal, year: 2026, month: 11, day: 6, hour: 12).date!
+        let expiry = DateComponents(calendar: cal, year: 2027, month: 1, day: 31).date!
+        let doc = Document(title: "OC", category: .carInsurance, expiryDate: expiry)
+
+        let plan = NotificationScheduler.plannedReminders(for: [doc], hour: 9, now: now, offsets: [7])
+        XCTAssertEqual(plan.count, 1)
+    }
+}
+
+final class CategoryGroupTests: XCTestCase {
+    func testEveryCategoryHasAGroup() {
+        let grouped = CategoryGroup.allCases.flatMap(\.categories)
+        XCTAssertEqual(Set(grouped), Set(DocumentCategory.allCases))
+        XCTAssertEqual(DocumentCategory.homeInsurance.group, .home)
+        XCTAssertEqual(DocumentCategory.drivingLicense.group, .auto)
+    }
+
+    func testPolishYearForms() {
+        XCTAssertEqual(DaysText.short(1549), "4 lata")
+        XCTAssertEqual(DaysText.short(2480), "6 lat")
+        XCTAssertEqual(DaysText.short(-2), "2 dni po")
+        XCTAssertEqual(DaysText.short(6), "6 dni")
+    }
+
+    func testLongCountdownInYearsMonthsDays() {
+        let cal = Calendar.current
+        let now = DateComponents(calendar: cal, year: 2026, month: 11, day: 7).date!
+        let date = DateComponents(calendar: cal, year: 2029, month: 2, day: 12).date!
+        XCTAssertEqual(DaysText.long(to: date, from: now), "2 lata, 3 miesiące i 5 dni")
+        XCTAssertEqual(DaysText.headline(to: date, from: now).big, "2 lata")
+        XCTAssertEqual(DaysText.compact(to: date, from: now), "2 l. 3 mies.")
+        let soon = DateComponents(calendar: cal, year: 2026, month: 11, day: 13).date!
+        XCTAssertEqual(DaysText.compact(to: soon, from: now), "6 dni")
+    }
+
+    @MainActor
+    func testGuessesCategoryFromScanText() {
+        XCTAssertEqual(DocumentEditView.guessCategory(in: "RZECZPOSPOLITA POLSKA\nDOWÓD OSOBISTY"), .idCard)
+        XCTAssertEqual(DocumentEditView.guessCategory(in: "Passport / Paszport"), .passport)
+        XCTAssertNil(DocumentEditView.guessCategory(in: "Faktura VAT"))
+    }
 }

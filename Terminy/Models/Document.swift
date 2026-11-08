@@ -18,13 +18,19 @@ final class Document {
     var number: String = ""
     var notes: String = ""
     var remindersEnabled: Bool = true
+    /// Własne terminy przypomnień (dni przed), np. "60,14,3". Puste = jak w ustawieniach.
+    var customOffsetsRaw: String = ""
     var createdAt: Date = Date.now
 
     // Tylko dla subskrypcji
     var price: Double?
     var billingCycleRaw: String?
 
+    /// Miniatura pierwszej strony skanu (lista, karta, podgląd).
     @Attribute(.externalStorage) var scanImageData: Data?
+    /// Wszystkie strony skanu w jednym PDF-ie.
+    @Attribute(.externalStorage) var scanPDFData: Data?
+    var scanPageCount: Int = 0
 
     init(
         title: String = "",
@@ -52,6 +58,17 @@ final class Document {
     var billingCycle: BillingCycle? {
         get { billingCycleRaw.flatMap(BillingCycle.init(rawValue:)) }
         set { billingCycleRaw = newValue?.rawValue }
+    }
+
+    /// Własne przypomnienia tego dokumentu albo `nil`, gdy obowiązują ustawienia ogólne.
+    var customOffsets: [Int]? {
+        get {
+            let values = customOffsetsRaw.split(separator: ",").compactMap { Int($0) }
+            return values.isEmpty ? nil : Array(Set(values)).sorted(by: >)
+        }
+        set {
+            customOffsetsRaw = Set(newValue ?? []).sorted(by: >).map(String.init).joined(separator: ",")
+        }
     }
 
     var displayTitle: String {

@@ -14,7 +14,11 @@ jobs:
 
       - name: Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.4.app || true
+          # Najnowszy stabilny Xcode 26+ (Liquid Glass), a gdy go nie ma, 16.4.
+          X=$(ls -d /Applications/Xcode_2[6-9]*.app 2>/dev/null | grep -vi beta | sort -V | tail -1)
+          [ -n "$X" ] || X=/Applications/Xcode_16.4.app
+          echo "Wybrany: $X"
+          sudo xcode-select -s "$X" || true
           xcodebuild -version
 
       - name: Generate project
@@ -50,6 +54,24 @@ jobs:
           xcrun simctl spawn "$DEST" launchctl list | grep -q "pl.terminy.app" || { echo "::error::Aplikacja padła po starcie"; find ~/Library/Logs/DiagnosticReports -name 'Terminy*' -mmin -5 | head -1 | xargs -I{} head -c 6000 {}; exit 1; }
           echo "Aplikacja działa po 8 s"
 
+      - name: Screenshots (demo data)
+        continue-on-error: true
+        run: |
+          DEST=$(xcrun simctl list devices booted -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for v in d.values() for x in v))")
+          mkdir -p build/shots
+          xcrun simctl status_bar "$DEST" override --time 9:41 --batteryLevel 100 --cellularBars 4 || true
+          for look in light dark; do
+            xcrun simctl ui "$DEST" appearance $look
+            for tab in home wallet detail add assistant paywall calendar account report shortcuts; do
+              xcrun simctl terminate "$DEST" pl.terminy.app || true
+              xcrun simctl launch "$DEST" pl.terminy.app -demoData -startTab $tab
+              sleep 5
+              xcrun simctl io "$DEST" screenshot "build/shots/$look-$tab.png"
+            done
+          done
+          xcrun simctl ui "$DEST" appearance light
+          ls -la build/shots
+
       - name: Diagnostic - CloudKit path without entitlement
         continue-on-error: true
         run: |
@@ -68,12 +90,35 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -n 30
           mkdir -p build/Payload
           cp -R build/Terminy.xcarchive/Products/Applications/Terminy.app build/Payload/
+          # Podpis „ad hoc” z samą grupą aplikacji: Sideloadly/AltStore widzą wtedy, że widżet
+          # i aplikacja dzielą dane, i mogą tę grupę zarejestrować na darmowym Apple ID.
+          cat > build/sideload.entitlements <<'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+          <key>com.apple.security.application-groups</key><array><string>group.pl.terminy.app</string></array>
+          </dict></plist>
+          PLIST
+          sed -i '' 's/^          //' build/sideload.entitlements
+          for ext in build/Payload/Terminy.app/PlugIns/*.appex; do
+            [ -d "$ext" ] && codesign --force --sign - --entitlements build/sideload.entitlements "$ext"
+          done
+          codesign --force --sign - --entitlements build/sideload.entitlements build/Payload/Terminy.app
+          ls build/Payload/Terminy.app/PlugIns || echo "Brak rozszerzeń"
           (cd build && zip -qr Terminy.ipa Payload)
 
       - uses: actions/upload-artifact@v4
         with:
           name: Terminy-ipa
           path: build/Terminy.ipa
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots
+          path: build/shots
+          if-no-files-found: ignore
           retention-days: 14
 
       - uses: actions/upload-artifact@v4
