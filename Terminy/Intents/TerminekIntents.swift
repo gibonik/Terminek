@@ -165,7 +165,7 @@ struct OpenDocumentIntent: OpenIntent {
 /// Siri nie mówi po polsku, więc obok polskich fraz są angielskie (gdy Siri jest po angielsku).
 /// Po polsku skróty uruchomisz z aplikacji Skróty, Spotlight, przycisku czynności albo stuknięcia w tył.
 struct TerminekShortcuts: AppShortcutsProvider {
-    static var shortcutTileColor: ShortcutTileColor { .purple }
+    static var shortcutTileColor: ShortcutTileColor { .teal }
 
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

@@ -648,58 +648,40 @@ struct MRZLines: View {
 }
 
 /// Znak aplikacji: kartka z zagiętym rogiem i licznik z ptaszkiem (jak ikona).
+/// Logo Terminka: zaokrąglony kwadrat w gradiencie morze → niebo, biały łuk odliczania
+/// (ile zostało do terminu) zakończony złotą kropką i pogrubione „T” w środku.
+/// Ten sam rysunek jest w ikonie aplikacji (scripts/make_icon.py).
 struct LogoMark: View {
     var size: CGFloat = DT.Size.avatar
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-                .fill(LinearGradient(colors: [DT.Palette.Card.subscriptionGlow[0], DT.Palette.Card.subscription[1]],
+            RoundedRectangle(cornerRadius: size * 0.2237, style: .continuous)
+                .fill(LinearGradient(colors: [DT.Palette.Brand.top, DT.Palette.Brand.bottom],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
-            DocSheet()
-                .fill(DT.Palette.Card.highlight)
-                .frame(width: size * 0.54, height: size * 0.68)
-                .shadow(color: DT.Palette.Card.lowlight.opacity(0.25), radius: size * 0.04, y: size * 0.03)
-                .overlay {
-                    ZStack {
-                        Circle()
-                            .stroke(DT.Palette.Card.subscription[1].opacity(0.12), lineWidth: size * 0.06)
-                        Circle()
-                            .trim(from: 0, to: 0.8)
-                            .stroke(AngularGradient(colors: [DT.Palette.Card.subscriptionGlow[0], DT.Palette.Card.subscriptionGlow[1], DT.Palette.accentAlt],
-                                                    center: .center),
-                                    style: StrokeStyle(lineWidth: size * 0.06, lineCap: .round))
-                            .rotationEffect(.degrees(-90))
-                        Image(systemName: "checkmark")
-                            .font(.system(size: size * 0.14, weight: .black))
-                            .foregroundStyle(DT.Palette.Card.subscription[1])
-                    }
-                    .frame(width: size * 0.36, height: size * 0.36)
-                    .offset(y: size * 0.08)
-                }
+            Circle()
+                .stroke(DT.Palette.Brand.mark.opacity(0.22), lineWidth: size * 0.075)
+                .frame(width: size * 0.62, height: size * 0.62)
+            Circle()
+                .trim(from: 0, to: 0.82)
+                .stroke(DT.Palette.Brand.mark, style: StrokeStyle(lineWidth: size * 0.075, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .frame(width: size * 0.62, height: size * 0.62)
+            Circle()
+                .fill(DT.Palette.Brand.dot)
+                .frame(width: size * 0.13, height: size * 0.13)
+                .offset(y: -size * 0.31)
+                .rotationEffect(.degrees(360 * 0.82))
+            // „T” z dwóch kapsuł, jak w ikonie.
+            ZStack(alignment: .top) {
+                Capsule().frame(width: size * 0.26, height: size * 0.075)
+                Capsule().frame(width: size * 0.085, height: size * 0.25)
+            }
+            .frame(height: size * 0.25)
+            .foregroundStyle(DT.Palette.Brand.mark)
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
-    }
-}
-
-/// Kartka z zagiętym prawym górnym rogiem.
-struct DocSheet: Shape {
-    func path(in rect: CGRect) -> Path {
-        let fold = rect.width * 0.28
-        let r = rect.width * 0.12
-        var p = Path()
-        p.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX - fold, y: rect.minY))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + fold))
-        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-        p.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r), control: CGPoint(x: rect.minX, y: rect.maxY))
-        p.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
-        p.addQuadCurve(to: CGPoint(x: rect.minX + r, y: rect.minY), control: CGPoint(x: rect.minX, y: rect.minY))
-        p.closeSubpath()
-        return p
     }
 }
 

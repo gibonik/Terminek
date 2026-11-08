@@ -67,6 +67,67 @@ final class AssistantTests: XCTestCase {
         XCTAssertTrue(reply.text.contains("urzędzie gminy"), reply.text)
     }
 
+    func testRefusesForgery() {
+        let reply = assistant.answer("jak podrobić dowód?", documents: all)
+        XCTAssertTrue(reply.text.hasPrefix("W tym nie pomogę"), reply.text)
+    }
+
+    func testOffTopicRedirects() {
+        let reply = assistant.answer("jaka jest jutro pogoda?", documents: all)
+        XCTAssertTrue(reply.text.hasPrefix("Z tym nie pomogę"), reply.text)
+        XCTAssertFalse(reply.actions.isEmpty)
+    }
+
+    func testGreetingIsNotTriggeredInsideWords() {
+        XCTAssertTrue(assistant.answer("Cześć!", documents: all).text.hasPrefix("Cześć"))
+        XCTAssertFalse(assistant.answer("kiedy toyota", documents: all).text.hasPrefix("Cześć"))
+    }
+
+    func testAppKnowledgeBackup() {
+        let reply = assistant.answer("Jak zrobić kopię zapasową?", documents: all)
+        XCTAssertTrue(reply.actions.contains(.backup))
+        XCTAssertTrue(reply.text.contains("Kopia zapasowa"), reply.text)
+    }
+
+    func testPlusPriceIsNotSubscriptionCost() {
+        let reply = assistant.answer("ile kosztuje plus?", documents: all)
+        XCTAssertTrue(reply.text.contains("69,99 zł"), reply.text)
+        XCTAssertTrue(reply.actions.contains(.plus))
+    }
+
+    func testDocumentNumber() {
+        oc.number = "WX 12345"
+        let reply = assistant.answer("jaki jest numer polisy OC?", documents: all)
+        XCTAssertTrue(reply.text.contains("WX 12345"), reply.text)
+    }
+
+    func testRenewOffersButton() {
+        let reply = assistant.answer("odnów OC", documents: all)
+        XCTAssertTrue(reply.actions.contains(.renew(oc.id)))
+        XCTAssertTrue(reply.text.contains("14 marca 2028"), reply.text)
+    }
+
+    func testSummaryMentionsExpired() {
+        let reply = assistant.answer("podsumuj moje dokumenty", documents: all)
+        XCTAssertTrue(reply.text.contains("Po terminie: Przegląd Passat"), reply.text)
+    }
+
+    func testAmbiguousWhenAsksBack() {
+        let reply = assistant.answer("kiedy?", documents: all)
+        XCTAssertEqual(reply.text, "O który dokument pytasz?")
+        XCTAssertFalse(reply.actions.isEmpty)
+    }
+
+    func testUnknownFallsBack() {
+        let reply = assistant.answer("asdf qwerty zxcv", documents: all)
+        XCTAssertTrue(reply.text.hasPrefix("Nie zrozumiałem"), reply.text)
+    }
+
+    func testFineInfoForOC() {
+        let reply = assistant.answer("jaka jest kara za brak OC?", documents: all)
+        XCTAssertTrue(reply.text.contains("ufg.pl"), reply.text)
+    }
+
     func testMissingCategory() {
         let reply = assistant.answer("kiedy prawo jazdy", documents: all)
         XCTAssertTrue(reply.documentIDs.isEmpty)

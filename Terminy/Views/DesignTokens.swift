@@ -11,8 +11,8 @@ import UIKit
 // 3. Kolory semantyczne, każdy ma wersję jasną i ciemną.
 // 4. Promienie: 12 pt karty, 20 pt panele i banery, kapsuła dla pigułek i tagów.
 //
-// Kierunek: „Midnight”. Prawie czarne tło jak w aplikacjach bankowych i streamingowych,
-// jeden elektryczny akcent (fiolet) i nasycone gradientowe karty dokumentów.
+// Kierunek: „Spokój”. Ciepła biel albo grafit, jeden morski akcent, dużo powietrza.
+// Kolor mają tylko karty dokumentów (każdy rodzaj swój), reszta jest cicha i czytelna.
 
 typealias DT = DesignTokens
 
@@ -55,6 +55,8 @@ enum DesignTokens {
         static let miniCard = CGSize(width: 48, height: 32)
         /// Wysokość baneru na starcie.
         static let hero: CGFloat = 320
+        /// Spokojniejszy baner na starcie.
+        static let homeHero: CGFloat = 236
         /// Nagłówek szczegółów.
         static let detailHeader: CGFloat = 440
         /// Chip na karcie.
@@ -136,44 +138,54 @@ enum DesignTokens {
     // MARK: Kolory (semantyczne, jasny i ciemny)
 
     enum Palette {
-        static let background = adaptive(0xF3F3F7, 0x07070B)
-        /// Lekko uniesione tło (górna poświata, arkusze).
-        static let backgroundElevated = adaptive(0xFFFFFF, 0x111118)
+        /// Ciepła biel za dnia, głęboki grafit w nocy (nie czysta czerń, mniej męczy oczy).
+        static let background = adaptive(0xF5F4F0, 0x0D1013)
+        /// Lekko uniesione tło (arkusze, widżet).
+        static let backgroundElevated = adaptive(0xFFFFFF, 0x161A1E)
 
-        static let surface = adaptive(0xFFFFFF, 0xFFFFFF, light: 1, dark: 0.06)
-        static let surfaceRaised = adaptive(0xE9E9F0, 0xFFFFFF, light: 1, dark: 0.11)
-        static let separator = adaptive(0x0B0B12, 0xFFFFFF, light: 0.08, dark: 0.08)
+        static let surface = adaptive(0xFFFFFF, 0xFFFFFF, light: 1, dark: 0.055)
+        static let surfaceRaised = adaptive(0xECEBE6, 0xFFFFFF, light: 1, dark: 0.10)
+        static let separator = adaptive(0x15181C, 0xFFFFFF, light: 0.08, dark: 0.08)
 
-        static let textPrimary = adaptive(0x0B0B12, 0xF5F5F7)
-        static let textSecondary = adaptive(0x646473, 0x9C9CAB)
-        static let textTertiary = adaptive(0x9A9AAA, 0x5F5F6E)
+        static let textPrimary = adaptive(0x15181C, 0xF2F4F5)
+        static let textSecondary = adaptive(0x5E636B, 0x9BA3AB)
+        static let textTertiary = adaptive(0x9AA0A6, 0x5E666E)
 
-        /// Elektryczny fiolet: główne przyciski, zaznaczenia, aktywna zakładka.
-        static let accent = adaptive(0x5B3DF5, 0x7C5CFF)
-        /// Akcent jako tekst na tle (kontrast 4.5:1 w obu trybach).
-        static let accentText = adaptive(0x4B2FE0, 0xAE9BFF)
-        static let onAccent = adaptive(0xFFFFFF, 0xFFFFFF)
-        /// Drugi kolor gradientu akcentu.
-        static let accentAlt = adaptive(0x0891B2, 0x22D3EE)
+        /// Morski zielononiebieski: spokojny, kojarzy się z „ważne i w porządku”.
+        static let accent = adaptive(0x0D8070, 0x2DD4B4)
+        /// Akcent jako tekst na tle (kontrast min. 4.5:1 w obu trybach).
+        static let accentText = adaptive(0x0B7A6B, 0x5EEAD4)
+        /// Tekst i ikony na akcencie: biel za dnia, ciemny atrament w nocy (jasny akcent).
+        static let onAccent = adaptive(0xFFFFFF, 0x06201B)
+        /// Drugi kolor gradientu akcentu (niebo).
+        static let accentAlt = adaptive(0x2F80ED, 0x60A5FA)
 
-        static let danger = adaptive(0xD61F45, 0xFF5470)
-        static let warning = adaptive(0xA15C00, 0xFFB020)
-        static let success = adaptive(0x0E8F68, 0x2EE6A6)
+        static let danger = adaptive(0xD9364F, 0xFF6B7F)
+        static let warning = adaptive(0xA36200, 0xFFB547)
+        static let success = adaptive(0x0E8F68, 0x34D399)
         static let dangerFill = adaptive(0xE11D48, 0xE11D48)
         static let onDanger = adaptive(0xFFFFFF, 0xFFFFFF)
 
-        static let shadow = adaptive(0x1A1A3A, 0x000000, light: 0.14, dark: 0.6)
+        static let shadow = adaptive(0x1B2430, 0x000000, light: 0.10, dark: 0.55)
         static let scrim = adaptive(0x000000, 0x000000)
         static let onScrim = adaptive(0xFFFFFF, 0xFFFFFF)
 
+        /// Logo i ikona aplikacji.
+        enum Brand {
+            static let top = SwiftUI.Color(hex: 0x19C3A6)
+            static let bottom = SwiftUI.Color(hex: 0x1E6FD9)
+            static let mark = SwiftUI.Color.white
+            static let dot = SwiftUI.Color(hex: 0xFFC94D)
+        }
+
         // Karty dokumentów to przedmioty: mają swoje gradienty w obu trybach.
         enum Card {
-            static let auto = [SwiftUI.Color(hex: 0xFF7A1A), SwiftUI.Color(hex: 0xE11D48)]
-            static let home = [SwiftUI.Color(hex: 0x2563EB), SwiftUI.Color(hex: 0x06B6D4)]
+            static let auto = [SwiftUI.Color(hex: 0xFF8A5B), SwiftUI.Color(hex: 0xE5486D)]
+            static let home = [SwiftUI.Color(hex: 0x3B82F6), SwiftUI.Color(hex: 0x14B8A6)]
             static let personal = [SwiftUI.Color(hex: 0x0D9488), SwiftUI.Color(hex: 0x0E7490)]
-            static let subscriptions = [SwiftUI.Color(hex: 0x7C3AED), SwiftUI.Color(hex: 0xDB2777)]
+            static let subscriptions = [SwiftUI.Color(hex: 0x8B5CF6), SwiftUI.Color(hex: 0xEC4899)]
             // Każdy rodzaj dokumentu ma własny wygląd karty.
-            static let carInsurance = [SwiftUI.Color(hex: 0xFF7A1A), SwiftUI.Color(hex: 0xE11D48)]
+            static let carInsurance = [SwiftUI.Color(hex: 0xFF8A5B), SwiftUI.Color(hex: 0xE5486D)]
             static let carInspection = [SwiftUI.Color(hex: 0xFBBF24), SwiftUI.Color(hex: 0xEA580C)]
             static let carInspectionInk = SwiftUI.Color(hex: 0x3B1702)
             static let passport = [SwiftUI.Color(hex: 0x881337), SwiftUI.Color(hex: 0x3F0717)]
@@ -182,7 +194,7 @@ enum DesignTokens {
             static let idCardInk = SwiftUI.Color(hex: 0x2E1A47)
             static let drivingLicense = [SwiftUI.Color(hex: 0xFBCFE8), SwiftUI.Color(hex: 0xF9A8D4)]
             static let drivingLicenseInk = SwiftUI.Color(hex: 0x4A1033)
-            static let homeInsurance = [SwiftUI.Color(hex: 0x2563EB), SwiftUI.Color(hex: 0x06B6D4)]
+            static let homeInsurance = [SwiftUI.Color(hex: 0x3B82F6), SwiftUI.Color(hex: 0x14B8A6)]
             static let subscription = [SwiftUI.Color(hex: 0x14102A), SwiftUI.Color(hex: 0x3B0764)]
             static let subscriptionGlow = [SwiftUI.Color(hex: 0x7C3AED), SwiftUI.Color(hex: 0xDB2777)]
             static let other = [SwiftUI.Color(hex: 0x475569), SwiftUI.Color(hex: 0x1E293B)]
@@ -195,6 +207,8 @@ enum DesignTokens {
             static let euStar = SwiftUI.Color(hex: 0xFACC15)
             /// Tekst na kartach.
             static let ink = SwiftUI.Color.white
+            /// Baner w barwach marki z białym tekstem (kontrast min. 4.5:1 w obu trybach).
+            static let brand = [SwiftUI.Color(hex: 0x0D8070), SwiftUI.Color(hex: 0x1D5FC4)]
             static let highlight = SwiftUI.Color.white
             static let lowlight = SwiftUI.Color.black
             /// Złoty chip.

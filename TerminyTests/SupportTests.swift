@@ -103,3 +103,14 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.upcoming(now: now).map(\.title), ["wczoraj", "dziś", "jutro", "za rok"])
     }
 }
+
+@MainActor
+final class HomeGreetingTests: XCTestCase {
+    func testGreetingFollowsTimeOfDay() {
+        let cal = Calendar.current
+        func at(_ hour: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: hour))! }
+        XCTAssertEqual(HomeView.greeting(at: at(9)), "Dzień dobry")
+        XCTAssertEqual(HomeView.greeting(at: at(20)), "Dobry wieczór")
+        XCTAssertEqual(HomeView.greeting(at: at(2)), "Dobranoc")
+    }
+}

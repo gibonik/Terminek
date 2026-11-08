@@ -324,7 +324,7 @@ struct AccountView: View {
         }
         .foregroundStyle(DT.Palette.Card.ink)
         .padding(DT.Space.gutter)
-        .background { LiveGradient(colors: [DT.Palette.accent, DT.Palette.accentAlt]) }
+        .background { LiveGradient(colors: DT.Palette.Card.brand) }
         .clipShape(RoundedRectangle(cornerRadius: DT.Radius.panel, style: .continuous))
         .shadow(color: DT.Palette.accent.opacity(0.35), radius: DT.Space.lg, y: DT.Space.sm)
     }
